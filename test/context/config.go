@@ -23,8 +23,10 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/ProtonMail/proton-bridge/pkg/config"
 	"github.com/ProtonMail/proton-bridge/pkg/constants"
 	"github.com/ProtonMail/proton-bridge/pkg/pmapi"
+	"github.com/sirupsen/logrus"
 )
 
 type fakeConfig struct {
@@ -39,9 +41,16 @@ func newFakeConfig() *fakeConfig {
 		panic(err)
 	}
 
-	return &fakeConfig{
+	cfg := &fakeConfig{
 		dir: dir,
 	}
+
+	// We must generate cert.pem and key.pem to prevent errors when attempting to open them.
+	if _, err = config.GenerateTLSConfig(cfg.GetTLSCertPath(), cfg.GetTLSKeyPath()); err != nil {
+		logrus.WithError(err).Fatal()
+	}
+
+	return cfg
 }
 
 func (c *fakeConfig) ClearData() error {
@@ -67,6 +76,9 @@ func (c *fakeConfig) GetLogPrefix() string {
 }
 func (c *fakeConfig) GetPreferencesPath() string {
 	return filepath.Join(c.dir, "prefs.json")
+}
+func (c *fakeConfig) GetTransferDir() string {
+	return c.dir
 }
 func (c *fakeConfig) GetTLSCertPath() string {
 	return filepath.Join(c.dir, "cert.pem")

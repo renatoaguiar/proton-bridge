@@ -36,6 +36,10 @@ func (ctl *Controller) AddUserMessage(username string, message *pmapi.Message) e
 		return fmt.Errorf("user %s does not exist", username)
 	}
 
+	if message.Flags == 0 {
+		message.Flags = pmapi.ComputeMessageFlagsByLabels(message.LabelIDs)
+	}
+
 	body, err := buildMessage(client, message)
 	if err != nil {
 		return errors.Wrap(err, "failed to build message")
@@ -130,4 +134,32 @@ func (ctl *Controller) GetMessageID(username, messageIndex string) string {
 		panic(fmt.Sprintf("message index %s not found", messageIndex))
 	}
 	return ctl.messageIDsByUsername[username][idx-1]
+}
+
+func (ctl *Controller) GetMessages(username, labelID string) ([]*pmapi.Message, error) {
+	client, ok := ctl.pmapiByUsername[username]
+	if !ok {
+		return nil, fmt.Errorf("user %s does not exist", username)
+	}
+
+	page := 0
+	messages := []*pmapi.Message{}
+
+	for {
+		// ListMessages returns empty result, not error, asking for page out of range.
+		pageMessages, _, err := client.ListMessages(&pmapi.MessagesFilter{
+			Page:     page,
+			PageSize: 150,
+			LabelID:  labelID,
+		})
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to list messages")
+		}
+		messages = append(messages, pageMessages...)
+		if len(pageMessages) < 150 {
+			break
+		}
+	}
+
+	return messages, nil
 }

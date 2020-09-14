@@ -29,7 +29,6 @@ import (
 	"net"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"runtime"
 	"time"
 )
@@ -65,20 +64,24 @@ func GetTLSConfig(cfg tlsConfiger) (tlsConfig *tls.Config, err error) {
 	tlsConfig, err = loadTLSConfig(certPath, keyPath)
 	if err != nil {
 		log.WithError(err).Warn("Cannot load cert, generating a new one")
-		tlsConfig, err = generateTLSConfig(certPath, keyPath)
+		tlsConfig, err = GenerateTLSConfig(certPath, keyPath)
 		if err != nil {
 			return
 		}
 
 		if runtime.GOOS == "darwin" {
-			// If this fails, log the error but continue to load.
-			if binaryPath, err := os.Executable(); err == nil {
-				macOSPath := filepath.Dir(binaryPath)
-				contentsPath := filepath.Dir(macOSPath)
-				resourcesPath := filepath.Join(contentsPath, "Resources", "addcert.scpt")
-				if err := exec.Command("/usr/bin/osascript", resourcesPath).Run(); err != nil { // nolint[gosec]
-					log.WithError(err).Error("Failed to add cert to system keychain")
-				}
+			if err := exec.Command( // nolint[gosec]
+				"/usr/bin/security",
+				"execute-with-privileges",
+				"/usr/bin/security",
+				"add-trusted-cert",
+				"-d",
+				"-r", "trustRoot",
+				"-p", "ssl",
+				"-k", "/Library/Keychains/System.keychain",
+				certPath,
+			).Run(); err != nil {
+				log.WithError(err).Error("Failed to add cert to system keychain")
 			}
 		}
 	}
@@ -123,8 +126,9 @@ func loadTLSConfig(certPath, keyPath string) (tlsConfig *tls.Config, err error) 
 	return
 }
 
+// GenerateTLSConfig generates certs and keys at the given filepaths and returns a TLS Config which holds them.
 // See https://golang.org/src/crypto/tls/generate_cert.go
-func generateTLSConfig(certPath, keyPath string) (tlsConfig *tls.Config, err error) {
+func GenerateTLSConfig(certPath, keyPath string) (tlsConfig *tls.Config, err error) {
 	priv, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
 		err = fmt.Errorf("failed to generate private key: %s", err)

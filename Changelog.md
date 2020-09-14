@@ -4,7 +4,59 @@ Changelog [format](http://keepachangelog.com/en/1.0.0/)
 
 ## Unreleased
 
-## [v1.3.x] Emma (beta since 2020-08-05)
+## [IE 0.2.x] Congo
+
+### Added
+* GODT-633 Persistent anonymous API cookies for better load balancing and abuse detection. 
+
+### Changed
+* GODT-409 Set flags have to replace all flags.
+* GODT-531 Better way to add trusted certificate in macOS.
+* Bumped golangci-lint to v1.29.0
+* GODT-549 Check log file size more often to prevent huge log files.
+* Bumped various dependencies:
+    * andybalholm/cascadia v1.1.0 -> v1.2.0
+    * emersion/go-imap-specialuse 20161227184202-ba031ced6a62 -> 20200722111535-598ff00e4075
+    * emersion/go-sasl 20191210011802-430746ea8b9b -> 20200509203442-7bfe0ed36a21
+    * github.com/go-resty/resty/v2 v2.2.0 -> v2.3.0
+    * github.com/golang/mock v1.4.3 -> v1.4.4
+    * github.com/google/go-cmp v0.4.0 -> v0.5.1
+    * github.com/hashicorp/go-multierror v1.0.0 -> v1.1.0
+    * github.com/jaytaylor/html2text 20200220170450-61d9dc4d7195 -> 20200412013138-3577fbdbcff7
+    * github.com/jhillyerd/enmime v0.8.0 -> v0.8.1
+    * github.com/keybase/go-keychain 20200218013740-86d4642e4ce2 -> 20200502122510-cda31fe0c86d
+    * github.com/logrusorgru/aurora 20200102142835-e9ef32dff381 -> v2.0.3+incompatible
+    * github.com/miekg/dns v1.1.29 -> v1.1.30
+    * github.com/nsf/jsondiff 20190712045011-8443391ee9b6 -> 20200515183724-f29ed568f4ce
+    * github.com/sirupsen/logrus v1.4.2 -> v1.6.0
+    * github.com/stretchr/testify v1.5.1 -> v1.6.1
+    * github.com/therecipe/qt 20200126204426-5074eb6d8c41 -> 20200701200531-7f61353ee73e
+    * github.com/urfave/cli v1.22.3 -> v1.22.4
+    * golang.org/x/net 20200301022130-244492dfa37a -> 20200707034311-ab3426394381
+    * golang.org/x/text v0.3.2 -> v0.3.3
+* Set first-start to false in bridge, not in frontend.
+* GODT-400 Refactor sendingInfo.
+* GODT-380 Adding IE GUI to Bridge repo and building
+    * BR: extend functionality of PopupDialog
+    * BR: makefile APP_VERSION instead of BRIDGE_VERSION
+    * BR: use common logs function for Qt
+    * BR: change `go.progressDescription` to `string`
+    * IE: Rounded button has fa-icon
+    * IE: `Upgrade` → `Update`
+    * IE: Moving `AccountModel` to `qt-common`
+    * IE: Added `ReportBug` to `internal/importexport`
+    * IE: Added event watch in GUI
+    * IE: Removed `onLoginFinished`
+    * Structure for transfer rules in QML
+* GODT-213 Convert panics from message parser to error.
+
+### Fixed
+* GODT-655 Fix date picker with automatic Windows DST
+* GODT-454 Fix send on closed channel when receiving unencrypted send confirmation from GUI.
+* GODT-597 Duplicate sending when draft creation takes too long
+
+
+## [v1.3.x] Emma (v1.3.2 beta 2020-08-04, v1.3.3 beta 2020-08-06, v1.3.3 live 2020-08-12)
 
 ### Added
 * GODT-554 Detect and notify about "bad certificate" IMAP TLS error.

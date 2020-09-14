@@ -41,6 +41,7 @@ type ClientManager struct {
 
 	clients       map[string]Client
 	clientsLocker sync.Locker
+	cookieJar     http.CookieJar
 
 	tokens       map[string]string
 	tokensLocker sync.Locker
@@ -126,6 +127,11 @@ func (cm *ClientManager) SetClientConstructor(f func(userID string) Client) {
 	cm.newClient = f
 }
 
+// SetCookieJar sets the cookie jar given to clients.
+func (cm *ClientManager) SetCookieJar(jar http.CookieJar) {
+	cm.cookieJar = jar
+}
+
 // SetRoundTripper sets the roundtripper used by clients created by this client manager.
 func (cm *ClientManager) SetRoundTripper(rt http.RoundTripper) {
 	cm.roundTripper = rt
@@ -145,9 +151,11 @@ func (cm *ClientManager) GetClient(userID string) Client {
 		return client
 	}
 
-	cm.clients[userID] = cm.newClient(userID)
+	client := cm.newClient(userID)
 
-	return cm.clients[userID]
+	cm.clients[userID] = client
+
+	return client
 }
 
 // GetAnonymousClient returns an anonymous client.
@@ -303,15 +311,14 @@ var ErrNoInternetConnection = errors.New("no internet connection")
 // CheckConnection returns an error if there is no internet connection.
 // This should be moved to the ConnectionManager when it is implemented.
 func (cm *ClientManager) CheckConnection() error {
-	client := getHTTPClient(cm.config, cm.roundTripper)
+	client := getHTTPClient(cm.config, cm.roundTripper, cm.cookieJar)
 
 	// Do not cumulate timeouts, use goroutines.
 	retStatus := make(chan error)
 	retAPI := make(chan error)
 
-	// Check protonstatus.com without SSL for performance reasons. vpn_status endpoint is fast and
-	// returns only OK; this endpoint is not known by the public. We check the connection only.
-	go checkConnection(client, "http://protonstatus.com/vpn_status", retStatus)
+	// vpn_status endpoint is fast and returns only OK. We check the connection only.
+	go checkConnection(client, "https://protonstatus.com/vpn_status", retStatus)
 
 	// Check of API reachability also uses a fast endpoint.
 	go checkConnection(client, cm.GetRootURL()+"/tests/ping", retAPI)
@@ -337,6 +344,14 @@ func (cm *ClientManager) CheckConnection() error {
 	}
 
 	return nil
+}
+
+// CheckConnection returns an error if there is no internet connection.
+func CheckConnection() error {
+	client := &http.Client{Timeout: time.Second * 10}
+	retStatus := make(chan error)
+	go checkConnection(client, "https://protonstatus.com/vpn_status", retStatus)
+	return <-retStatus
 }
 
 func checkConnection(client *http.Client, url string, errorChannel chan error) {
@@ -437,10 +452,9 @@ func (cm *ClientManager) HandleAuth(ca ClientAuth) {
 	if ca.Auth == nil {
 		cm.clearToken(ca.UserID)
 		go cm.LogoutClient(ca.UserID)
-		return
+	} else {
+		cm.setToken(ca.UserID, ca.Auth.GenToken(), time.Duration(ca.Auth.ExpiresIn)*time.Second)
 	}
-
-	cm.setToken(ca.UserID, ca.Auth.GenToken(), time.Duration(ca.Auth.ExpiresIn)*time.Second)
 
 	logrus.Debug("ClientManager is forwarding auth update...")
 	cm.authUpdates <- ca

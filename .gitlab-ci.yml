@@ -1,4 +1,4 @@
-image: gitlab.protontech.ch:4567/go/bridge/ci
+image: gitlab.protontech.ch:4567/go/bridge-internal
 
 before_script:
   - eval $(ssh-agent -s)
@@ -13,37 +13,14 @@ before_script:
 cache:
   key: go-mod
   paths:
-  - .cache
+    - .cache
   policy: pull
 
 stages:
-  - image
   - cache
   - test
   - build
   - mirror
-
-# Stage: IMAGE
-
-build-ci-image:
-  stage: image
-  image: docker:stable
-  before_script: []
-  cache: {}
-  tags:
-  - heavy
-  only:
-    changes:
-    - ci/*
-  services:
-  - docker:dind
-  variables:
-    DOCKER_HOST: tcp://docker:2375
-  script:
-  - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
-  - docker info
-  - docker build -t gitlab.protontech.ch:4567/go/bridge/ci:latest ci
-  - docker push gitlab.protontech.ch:4567/go/bridge/ci:latest
 
 # Stage: CACHE
 
@@ -54,11 +31,11 @@ cache-push:
   only:
     - branches
   script:
-  - echo ""
+    - echo ""
   cache:
     key: go-mod
     paths:
-    - .cache
+      - .cache
 
 # Stage: TEST
 
@@ -98,23 +75,33 @@ dependency-updates:
 
 # Stage: BUILD
 
-build-linux:
+.build-base:
   stage: build
-  # Test build every time (= we want to know build is possible).
   only:
     - branches
   script:
     - make build
   artifacts:
+    expire_in: 2 week
+
+build-linux:
+  extends: .build-base
+  artifacts:
     name: "bridge-linux-$CI_COMMIT_SHORT_SHA"
     paths:
       - bridge_*.tgz
-    expire_in: 2 week
 
-build-darwin:
-  stage: build
-  only:
-    - branches
+build-ie-linux:
+  extends: .build-base
+  script:
+    - make build-ie
+  artifacts:
+    name: "ie-linux-$CI_COMMIT_SHORT_SHA"
+    paths:
+      - ie_*.tgz
+
+.build-darwin-base:
+  extends: .build-base
   before_script:
     - eval $(ssh-agent -s)
     - echo "$SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add - > /dev/null
@@ -125,25 +112,36 @@ build-darwin:
     - export PATH=/usr/local/opt/gnu-sed/libexec/gnubin:$PATH
     - export GOPATH=~/go
     - export PATH=$GOPATH/bin:$PATH
+    - export CGO_CPPFLAGS='-Wno-error -Wno-nullability-completeness -Wno-expansion-to-defined -Wno-builtin-requires-header'
   cache: {}
   tags:
-    - macOS-bridge
-  script:
-    - make build
+    - macOS
+
+build-darwin:
+  extends: .build-darwin-base
   artifacts:
     name: "bridge-darwin-$CI_COMMIT_SHORT_SHA"
     paths:
       - bridge_*.tgz
-    expire_in: 2 week
 
-build-windows:
-  stage: build
+build-ie-darwin:
+  extends: .build-darwin-base
+  script:
+    - make build-ie
+  artifacts:
+    name: "ie-darwin-$CI_COMMIT_SHORT_SHA"
+    paths:
+      - ie_*.tgz
+
+.build-windows-base:
+  extends: .build-base
   services:
-  - docker:dind
-  only:
-    - branches
+    - docker:dind
   variables:
     DOCKER_HOST: tcp://docker:2375
+
+build-windows:
+  extends: .build-windows-base
   script:
     # We need to install docker because qtdeploy builds for windows inside a docker container.
     # Docker will connect to the dockerd daemon provided by the runner service docker:dind at tcp://docker:2375.
@@ -156,7 +154,23 @@ build-windows:
     name: "bridge-windows-$CI_COMMIT_SHORT_SHA"
     paths:
       - bridge_*.tgz
-    expire_in: 2 week
+
+build-ie-windows:
+  extends: .build-windows-base
+  script:
+    # We need to install docker because qtdeploy builds for windows inside a docker container.
+    # Docker will connect to the dockerd daemon provided by the runner service docker:dind at tcp://docker:2375.
+    - curl -fsSL https://get.docker.com -o get-docker.sh && sh get-docker.sh
+    - apt-get update && apt-get -y install binutils-mingw-w64 tar gzip
+    - ln -s /usr/bin/x86_64-w64-mingw32-windres /usr/bin/windres
+    - go mod download
+    - TARGET_OS=windows make build-ie
+  artifacts:
+    name: "ie-windows-$CI_COMMIT_SHORT_SHA"
+    paths:
+      - ie_*.tgz
+
+# Stage: MIRROR
 
 mirror-repo:
   stage: mirror
