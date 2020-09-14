@@ -25,16 +25,13 @@ import (
 func newKeychain() (credentials.Helper, error) {
 	log.Debug("Creating pass")
 	passHelper := &pass.Pass{}
-	passErr := checkPassIsUsable(passHelper)
-	if passErr == nil {
-		return passHelper, nil
-	}
-
-	log.Error("No keychain! Pass: ", passErr)
-	return nil, ErrNoKeychainInstalled
+	return passHelper, nil
 }
 
 func checkPassIsUsable(passHelper *pass.Pass) (err error) {
+	// FIXME This is ugly because it requires unlocking gpg2 and
+	// creates useless entries in password-store.
+
 	creds := &credentials.Credentials{
 		ServerURL: "initCheck/pass",
 		Username:  "pass",
