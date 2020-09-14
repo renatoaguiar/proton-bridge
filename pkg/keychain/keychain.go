@@ -53,6 +53,7 @@ func NewAccess(appName string) (*Access, error) {
 		KeychainOldURL:    "protonmail/users",
 		KeychainMacURL:    "ProtonMail" + strings.Title(appName) + "Service",
 		KeychainOldMacURL: "ProtonMailService",
+		cache:             make(map[string]string),
 	}, nil
 }
 
@@ -62,6 +63,7 @@ type Access struct {
 	KeychainOldURL,
 	KeychainMacURL,
 	KeychainOldMacURL string
+	cache map[string]string
 }
 
 func (s *Access) List() (userIDs []string, err error) {
@@ -92,13 +94,21 @@ func (s *Access) List() (userIDs []string, err error) {
 func (s *Access) Delete(userID string) (err error) {
 	accessLocker.Lock()
 	defer accessLocker.Unlock()
-	return s.helper.Delete(s.KeychainName(userID))
+	key := s.KeychainName(userID)
+	delete(s.cache, key)
+	return s.helper.Delete(key)
 }
 
 func (s *Access) Get(userID string) (secret string, err error) {
 	accessLocker.Lock()
 	defer accessLocker.Unlock()
-	_, secret, err = s.helper.Get(s.KeychainName(userID))
+	key := s.KeychainName(userID)
+	var ok bool
+	if secret, ok = s.cache[key]; ok {
+		return
+	}
+	_, secret, err = s.helper.Get(key)
+	s.cache[key] = secret
 	return
 }
 
@@ -116,7 +126,12 @@ func (s *Access) Put(userID, secret string) error {
 		Secret:    secret,
 	}
 
-	return s.helper.Add(cred)
+	err := s.helper.Add(cred)
+	if err != nil {
+		return err
+	}
+	s.cache[cred.ServerURL] = cred.Secret
+	return nil
 }
 
 func splitServiceAndID(keychainName string) (serviceName string, userID string, err error) { //nolint[unused]
