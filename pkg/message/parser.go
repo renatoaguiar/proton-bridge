@@ -102,6 +102,9 @@ func combineParts(m *pmapi.Message, parts []io.Reader, headers []textproto.MIMEH
 
 		if strings.HasPrefix(mediaType, "text/") && mediaType != "text/calendar" && disp != "attachment" {
 			// This is text.
+			if d == nil {
+				continue
+			}
 			var b []byte
 			if b, err = ioutil.ReadAll(d); err != nil {
 				continue
