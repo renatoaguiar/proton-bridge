@@ -116,9 +116,10 @@ func (s *Access) Put(userID, secret string) error {
 	accessLocker.Lock()
 	defer accessLocker.Unlock()
 
+	// FIXME support proper update on supporting backends
 	// On macOS, adding a credential that already exists does not update it and returns an error.
 	// So let's remove it first.
-	_ = s.helper.Delete(s.KeychainName(userID))
+	// _ = s.helper.Delete(s.KeychainName(userID))
 
 	cred := &credentials.Credentials{
 		ServerURL: s.KeychainName(userID),
