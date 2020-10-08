@@ -13,16 +13,17 @@ require (
 
 require (
 	github.com/0xAX/notificator v0.0.0-20191016112426-3962a5ea8da1
+	github.com/Masterminds/semver/v3 v3.1.0
 	github.com/ProtonMail/go-appdir v1.1.0
 	github.com/ProtonMail/go-apple-mobileconfig v0.0.0-20160701194735-7ea9927a11f6
 	github.com/ProtonMail/go-autostart v0.0.0-20181114175602-c5272053443a
 	github.com/ProtonMail/go-imap-id v0.0.0-20190926060100-f94a56b9ecde
 	github.com/ProtonMail/go-vcard v0.0.0-20180326232728-33aaa0a0c8a5
 	github.com/ProtonMail/gopenpgp/v2 v2.0.1
+	github.com/PuerkitoBio/goquery v1.5.1
 	github.com/abiosoft/ishell v2.0.0+incompatible
 	github.com/abiosoft/readline v0.0.0-20180607040430-155bce2042db // indirect
 	github.com/allan-simon/go-singleinstance v0.0.0-20160830203053-79edcfdc2dfc
-	github.com/andybalholm/cascadia v1.2.0
 	github.com/certifi/gocertifi v0.0.0-20200211180108-c7c1fbc02894 // indirect
 	github.com/chzyer/logex v1.1.10 // indirect
 	github.com/chzyer/test v0.0.0-20180213035817-a1ea475d72b1 // indirect
@@ -35,7 +36,7 @@ require (
 	github.com/emersion/go-imap-specialuse v0.0.0-20200722111535-598ff00e4075
 	github.com/emersion/go-imap-unselect v0.0.0-20171113212723-b985794e5f26
 	github.com/emersion/go-mbox v1.0.0
-	github.com/emersion/go-message v0.11.1
+	github.com/emersion/go-message v0.12.1-0.20200903165315-e1abe21f389a
 	github.com/emersion/go-sasl v0.0.0-20200509203442-7bfe0ed36a21
 	github.com/emersion/go-textwrapper v0.0.0-20160606182133-d0e65e56babe
 	github.com/emersion/go-vcard v0.0.0-20190105225839-8856043f13c5 // indirect
@@ -46,11 +47,9 @@ require (
 	github.com/golang/mock v1.4.4
 	github.com/google/go-cmp v0.5.1
 	github.com/google/uuid v1.1.1
-	github.com/go-delve/delve v1.4.1 // indirect
 	github.com/gopherjs/gopherjs v0.0.0-20190430165422-3e4dfb77656c // indirect
 	github.com/hashicorp/go-multierror v1.1.0
 	github.com/jaytaylor/html2text v0.0.0-20200412013138-3577fbdbcff7
-	github.com/jhillyerd/enmime v0.8.1
 	github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0
 	github.com/keybase/go-keychain v0.0.0-20200502122510-cda31fe0c86d
 	github.com/logrusorgru/aurora v2.0.3+incompatible
@@ -60,13 +59,11 @@ require (
 	github.com/nsf/jsondiff v0.0.0-20200515183724-f29ed568f4ce
 	github.com/olekukonko/tablewriter v0.0.4 // indirect
 	github.com/pkg/errors v0.9.1
-	github.com/psampaz/go-mod-outdated v0.6.0 // indirect
 	github.com/sirupsen/logrus v1.6.0
 	github.com/skratchdot/open-golang v0.0.0-20200116055534-eef842397966
+	github.com/ssor/bom v0.0.0-20170718123548-6386211fdfcf // indirect
 	github.com/stretchr/testify v1.6.1
 	github.com/therecipe/qt v0.0.0-20200701200531-7f61353ee73e
-	github.com/therecipe/qt/internal/binding/files/docs/5.12.0 v0.0.0-20200603231648-26cdb75b6f22 // indirect
-	github.com/therecipe/qt/internal/binding/files/docs/5.13.0 v0.0.0-20200603231648-26cdb75b6f22 // indirect
 	github.com/twinj/uuid v1.0.0 // indirect
 	github.com/urfave/cli v1.22.4
 	go.etcd.io/bbolt v1.3.5
@@ -77,8 +74,9 @@ require (
 
 replace (
 	github.com/docker/docker-credential-helpers => github.com/renatoaguiar/docker-credential-helpers v1.1.1
-	github.com/emersion/go-imap => github.com/jameshoulahan/go-imap v0.0.0-20200728140727-d57327f48843
+	github.com/emersion/go-imap => github.com/ProtonMail/go-imap v0.0.0-20200828124548-d04b0dc1f399
+	github.com/emersion/go-mbox => github.com/ProtonMail/mbox v0.0.0-20200918064939-909a18c9af45
 	github.com/emersion/go-smtp => github.com/ProtonMail/go-smtp v0.0.0-20181206232543-8261df20d309
 	github.com/jameskeane/bcrypt => github.com/ProtonMail/bcrypt v0.0.0-20170924085257-7509ea014998
-	golang.org/x/crypto => github.com/ProtonMail/crypto v0.0.0-20200420072808-71bec3603bf3
+	golang.org/x/crypto => github.com/ProtonMail/crypto v0.0.0-20200818122824-ed5d25e28db8
 )

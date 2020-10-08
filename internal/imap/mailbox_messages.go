@@ -57,7 +57,7 @@ func (im *imapMailbox) UpdateMessagesFlags(uid bool, seqSet *imap.SeqSet, operat
 	return im.addOrRemoveFlags(operation, messageIDs, flags)
 }
 
-func (im *imapMailbox) setFlags(messageIDs, flags []string) error {
+func (im *imapMailbox) setFlags(messageIDs, flags []string) error { //nolint
 	seen := false
 	flagged := false
 	deleted := false
@@ -77,19 +77,33 @@ func (im *imapMailbox) setFlags(messageIDs, flags []string) error {
 	}
 
 	if seen {
-		_ = im.storeMailbox.MarkMessagesRead(messageIDs)
+		if err := im.storeMailbox.MarkMessagesRead(messageIDs); err != nil {
+			return err
+		}
 	} else {
-		_ = im.storeMailbox.MarkMessagesUnread(messageIDs)
+		if err := im.storeMailbox.MarkMessagesUnread(messageIDs); err != nil {
+			return err
+		}
 	}
 
 	if flagged {
-		_ = im.storeMailbox.MarkMessagesStarred(messageIDs)
+		if err := im.storeMailbox.MarkMessagesStarred(messageIDs); err != nil {
+			return err
+		}
 	} else {
-		_ = im.storeMailbox.MarkMessagesUnstarred(messageIDs)
+		if err := im.storeMailbox.MarkMessagesUnstarred(messageIDs); err != nil {
+			return err
+		}
 	}
 
 	if deleted {
-		_ = im.storeMailbox.DeleteMessages(messageIDs)
+		if err := im.storeMailbox.MarkMessagesDeleted(messageIDs); err != nil {
+			return err
+		}
+	} else {
+		if err := im.storeMailbox.MarkMessagesUndeleted(messageIDs); err != nil {
+			return err
+		}
 	}
 
 	spamMailbox, err := im.storeAddress.GetMailbox("Spam")
@@ -97,9 +111,13 @@ func (im *imapMailbox) setFlags(messageIDs, flags []string) error {
 		return err
 	}
 	if spam {
-		_ = spamMailbox.LabelMessages(messageIDs)
+		if err := spamMailbox.LabelMessages(messageIDs); err != nil {
+			return err
+		}
 	} else {
-		_ = spamMailbox.UnlabelMessages(messageIDs)
+		if err := spamMailbox.UnlabelMessages(messageIDs); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -111,22 +129,36 @@ func (im *imapMailbox) addOrRemoveFlags(operation imap.FlagsOp, messageIDs, flag
 		case imap.SeenFlag:
 			switch operation {
 			case imap.AddFlags:
-				_ = im.storeMailbox.MarkMessagesRead(messageIDs)
+				if err := im.storeMailbox.MarkMessagesRead(messageIDs); err != nil {
+					return err
+				}
 			case imap.RemoveFlags:
-				_ = im.storeMailbox.MarkMessagesUnread(messageIDs)
+				if err := im.storeMailbox.MarkMessagesUnread(messageIDs); err != nil {
+					return err
+				}
 			}
 		case imap.FlaggedFlag:
 			switch operation {
 			case imap.AddFlags:
-				_ = im.storeMailbox.MarkMessagesStarred(messageIDs)
+				if err := im.storeMailbox.MarkMessagesStarred(messageIDs); err != nil {
+					return err
+				}
 			case imap.RemoveFlags:
-				_ = im.storeMailbox.MarkMessagesUnstarred(messageIDs)
+				if err := im.storeMailbox.MarkMessagesUnstarred(messageIDs); err != nil {
+					return err
+				}
 			}
 		case imap.DeletedFlag:
-			if operation == imap.RemoveFlags {
-				break // Nothing to do, no message has the \Deleted flag.
+			switch operation {
+			case imap.AddFlags:
+				if err := im.storeMailbox.MarkMessagesDeleted(messageIDs); err != nil {
+					return err
+				}
+			case imap.RemoveFlags:
+				if err := im.storeMailbox.MarkMessagesUndeleted(messageIDs); err != nil {
+					return err
+				}
 			}
-			_ = im.storeMailbox.DeleteMessages(messageIDs)
 		case imap.AnsweredFlag, imap.DraftFlag, imap.RecentFlag:
 			// Not supported.
 		case message.AppleMailJunkFlag, message.ThunderbirdJunkFlag:
@@ -140,9 +172,13 @@ func (im *imapMailbox) addOrRemoveFlags(operation imap.FlagsOp, messageIDs, flag
 			// No label removal is necessary because Spam and Inbox are both exclusive labels so the backend
 			// will automatically take care of label removal.
 			case imap.AddFlags:
-				_ = storeMailbox.LabelMessages(messageIDs)
+				if err := storeMailbox.LabelMessages(messageIDs); err != nil {
+					return err
+				}
 			case imap.RemoveFlags:
-				_ = storeMailbox.UnlabelMessages(messageIDs)
+				if err := storeMailbox.UnlabelMessages(messageIDs); err != nil {
+					return err
+				}
 			}
 		}
 	}
@@ -186,6 +222,20 @@ func (im *imapMailbox) labelMessages(uid bool, seqSet *imap.SeqSet, targetLabel 
 		return err
 	}
 
+	deletedIDs := []string{}
+	allDeletedIDs, err := im.storeMailbox.GetDeletedAPIIDs()
+	if err != nil {
+		log.WithError(err).Warn("Problem to get deleted API IDs")
+	} else {
+		for _, messageID := range messageIDs {
+			for _, deletedID := range allDeletedIDs {
+				if messageID == deletedID {
+					deletedIDs = append(deletedIDs, deletedID)
+				}
+			}
+		}
+	}
+
 	// Label messages first to not lose them. If message is only in trash and we unlabel
 	// it, it will be removed completely and we cannot label it back.
 	if err := targetStoreMailbox.LabelMessages(messageIDs); err != nil {
@@ -194,6 +244,13 @@ func (im *imapMailbox) labelMessages(uid bool, seqSet *imap.SeqSet, targetLabel 
 	if move {
 		if err := im.storeMailbox.UnlabelMessages(messageIDs); err != nil {
 			return err
+		}
+	}
+
+	// Preserve \Deleted flag at target location.
+	if len(deletedIDs) > 0 {
+		if err := targetStoreMailbox.MarkMessagesDeleted(deletedIDs); err != nil {
+			log.WithError(err).Warn("Problem to preserve deleted flag for copied messages")
 		}
 	}
 
@@ -321,6 +378,9 @@ func (im *imapMailbox) SearchMessages(isUID bool, criteria *imap.SearchCriteria)
 		if !m.Has(pmapi.FlagOpened) {
 			messageFlagsMap[imap.RecentFlag] = true
 		}
+		if storeMessage.IsMarkedDeleted() {
+			messageFlagsMap[imap.DeletedFlag] = true
+		}
 
 		flagMatch := true
 		for _, flag := range criteria.WithFlags {
@@ -382,6 +442,12 @@ func (im *imapMailbox) ListMessages(isUID bool, seqSet *imap.SeqSet, items []ima
 		// Called from go-imap in goroutines - we need to handle panics for each function.
 		im.panicHandler.HandlePanic()
 	}()
+
+	// EXPUNGE cannot be sent during listing and can come only from
+	// the event loop, so we prevent any server side update to avoid
+	// the problem.
+	im.storeUser.PauseEventLoop(true)
+	defer im.storeUser.PauseEventLoop(false)
 
 	var markAsReadIDs []string
 	markAsReadMutex := &sync.Mutex{}

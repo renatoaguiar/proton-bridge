@@ -23,7 +23,6 @@ import (
 	"sync"
 	"time"
 
-	imapid "github.com/ProtonMail/go-imap-id"
 	"github.com/ProtonMail/proton-bridge/internal/bridge"
 	"github.com/ProtonMail/proton-bridge/internal/events"
 	"github.com/ProtonMail/proton-bridge/pkg/listener"
@@ -44,9 +43,6 @@ type imapBackend struct {
 
 	users       map[string]*imapUser
 	usersLocker sync.Locker
-
-	lastMailClient       imapid.ID
-	lastMailClientLocker sync.Locker
 
 	imapCache     map[string]map[string]string
 	imapCachePath string
@@ -86,9 +82,6 @@ func newIMAPBackend(
 
 		users:       map[string]*imapUser{},
 		usersLocker: &sync.Mutex{},
-
-		lastMailClient:       imapid.ID{imapid.FieldName: clientNone},
-		lastMailClientLocker: &sync.Mutex{},
 
 		imapCachePath: cfg.GetIMAPCachePath(),
 		imapCacheLock: &sync.RWMutex{},
@@ -164,7 +157,9 @@ func (ib *imapBackend) Login(_ *imap.ConnInfo, username, password string) (goIMA
 
 	if err := imapUser.user.CheckBridgeLogin(password); err != nil {
 		log.WithError(err).Error("Could not check bridge password")
-		_ = imapUser.Logout()
+		if err := imapUser.Logout(); err != nil {
+			log.WithError(err).Warn("Could not logout user after unsuccessful login check")
+		}
 		// Apple Mail sometimes generates a lot of requests very quickly.
 		// It's therefore good to have a timeout after a bad login so that we can slow
 		// those requests down a little bit.
@@ -190,23 +185,6 @@ func (ib *imapBackend) Updates() <-chan goIMAPBackend.Update {
 
 func (ib *imapBackend) CreateMessageLimit() *uint32 {
 	return nil
-}
-
-func (ib *imapBackend) setLastMailClient(id imapid.ID) {
-	ib.lastMailClientLocker.Lock()
-	defer ib.lastMailClientLocker.Unlock()
-
-	if name, ok := id[imapid.FieldName]; ok && ib.lastMailClient[imapid.FieldName] != name {
-		ib.lastMailClient = imapid.ID{}
-		for k, v := range id {
-			ib.lastMailClient[k] = v
-		}
-		log.Warn("Mail Client ID changed to ", ib.lastMailClient)
-		ib.bridge.SetCurrentClient(
-			ib.lastMailClient[imapid.FieldName],
-			ib.lastMailClient[imapid.FieldVersion],
-		)
-	}
 }
 
 // monitorDisconnectedUsers removes users when it receives a close connection event for them.

@@ -130,7 +130,7 @@ func getLabelExclusive(name string) int {
 	return 0
 }
 
-func (ctl *Controller) AddUserMessage(username string, message *pmapi.Message) error {
+func (ctl *Controller) AddUserMessage(username string, message *pmapi.Message) (string, error) {
 	if _, ok := ctl.messagesByUsername[username]; !ok {
 		ctl.messagesByUsername[username] = []*pmapi.Message{}
 	}
@@ -138,7 +138,7 @@ func (ctl *Controller) AddUserMessage(username string, message *pmapi.Message) e
 	message.LabelIDs = append(message.LabelIDs, pmapi.AllMailLabel)
 	ctl.messagesByUsername[username] = append(ctl.messagesByUsername[username], message)
 	ctl.resetUsers()
-	return nil
+	return message.ID, nil
 }
 
 func (ctl *Controller) getFakeAPIForUser(userID string) *FakePMAPI {

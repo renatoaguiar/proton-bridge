@@ -236,7 +236,6 @@ func (c *client) doBuffered(req *http.Request, bodyBuffer []byte, retryUnauthori
 
 	req.Header.Set("User-Agent", c.cm.config.UserAgent)
 	req.Header.Set("x-pm-appversion", c.cm.config.AppVersion)
-	req.Header.Set("x-pm-apiversion", strconv.Itoa(Version))
 
 	if c.uid != "" {
 		req.Header.Set("x-pm-uid", c.uid)
@@ -266,6 +265,9 @@ func (c *client) doBuffered(req *http.Request, bodyBuffer []byte, retryUnauthori
 		}
 		return
 	}
+
+	// Cookies are returned only after request was sent.
+	c.log.Tracef("REQCOOKIES '%v'", req.Cookies())
 
 	resDate := res.Header.Get("Date")
 	if resDate != "" {

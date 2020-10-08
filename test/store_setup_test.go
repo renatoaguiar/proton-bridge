@@ -79,13 +79,16 @@ func thereAreMessagesInMailboxesForAddressOfUser(mailboxNames, bddAddressID, bdd
 	if account == nil {
 		return godog.ErrPending
 	}
-	head := messages.Rows[0].Cells
-	for i := 1; i < len(messages.Rows); i++ {
-		labelIDs, err := ctx.GetPMAPIController().GetLabelIDs(account.Username(), strings.Split(mailboxNames, ","))
-		if err != nil {
-			return internalError(err, "getting labels %s for %s", mailboxNames, account.Username())
-		}
 
+	labelIDs, err := ctx.GetPMAPIController().GetLabelIDs(account.Username(), strings.Split(mailboxNames, ","))
+	if err != nil {
+		return internalError(err, "getting labels %s for %s", mailboxNames, account.Username())
+	}
+
+	var markMessageIDsDeleted []string
+
+	head := messages.Rows[0].Cells
+	for _, row := range messages.Rows[1:] {
 		message := &pmapi.Message{
 			MIMEType:  "text/plain",
 			LabelIDs:  labelIDs,
@@ -96,7 +99,9 @@ func thereAreMessagesInMailboxesForAddressOfUser(mailboxNames, bddAddressID, bdd
 			message.Flags |= pmapi.FlagSent
 		}
 
-		for n, cell := range messages.Rows[i].Cells {
+		hasDeletedFlag := false
+
+		for n, cell := range row.Cells {
 			switch head[n].Value {
 			case "from":
 				message.Sender = &mail.Address{
@@ -132,15 +137,39 @@ func thereAreMessagesInMailboxesForAddressOfUser(mailboxNames, bddAddressID, bdd
 					return internalError(err, "parsing time")
 				}
 				message.Time = date.Unix()
+			case "deleted":
+				hasDeletedFlag = cell.Value == "true"
 			default:
 				return fmt.Errorf("unexpected column name: %s", head[n].Value)
 			}
 		}
-		if err := ctx.GetPMAPIController().AddUserMessage(account.Username(), message); err != nil {
+		lastMessageID, err := ctx.GetPMAPIController().AddUserMessage(account.Username(), message)
+		if err != nil {
 			return internalError(err, "adding message")
 		}
+
+		if hasDeletedFlag {
+			markMessageIDsDeleted = append(markMessageIDsDeleted, lastMessageID)
+		}
 	}
-	return internalError(ctx.WaitForSync(account.Username()), "waiting for sync")
+
+	if err := internalError(ctx.WaitForSync(account.Username()), "waiting for sync"); err != nil {
+		return err
+	}
+
+	if len(markMessageIDsDeleted) > 0 {
+		for _, mailboxName := range strings.Split(mailboxNames, ",") {
+			storeMailbox, err := ctx.GetStoreMailbox(account.Username(), account.AddressID(), mailboxName)
+			if err != nil {
+				return err
+			}
+			if err := storeMailbox.MarkMessagesDeleted(markMessageIDsDeleted); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
 }
 
 func thereAreSomeMessagesInMailboxesForUser(numberOfMessages int, mailboxNames, bddUserID string) error {
@@ -194,7 +223,7 @@ func thereAreSomeMessagesInMailboxesForAddressOfUser(numberOfMessages int, mailb
 		if err != nil {
 			return internalError(err, "getting labels %s for %s", mailboxNames, account.Username())
 		}
-		err = ctx.GetPMAPIController().AddUserMessage(account.Username(), &pmapi.Message{
+		_, err = ctx.GetPMAPIController().AddUserMessage(account.Username(), &pmapi.Message{
 			MIMEType:  "text/plain",
 			LabelIDs:  labelIDs,
 			AddressID: account.AddressID(),

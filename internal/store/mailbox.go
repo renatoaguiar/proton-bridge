@@ -41,7 +41,7 @@ type Mailbox struct {
 }
 
 func newMailbox(storeAddress *Address, labelID, labelPrefix, labelName, color string) (mb *Mailbox, err error) {
-	_ = storeAddress.store.db.Update(func(tx *bolt.Tx) error {
+	err = storeAddress.store.db.Update(func(tx *bolt.Tx) error {
 		mb, err = txNewMailbox(tx, storeAddress, labelID, labelPrefix, labelName, color)
 		return err
 	})
@@ -236,6 +236,17 @@ func (storeMailbox *Mailbox) txGetIMAPIDsBucket(tx *bolt.Tx) *bolt.Bucket {
 // txGetAPIIDsBucket returns the bucket mapping API ID to IMAP ID.
 func (storeMailbox *Mailbox) txGetAPIIDsBucket(tx *bolt.Tx) *bolt.Bucket {
 	return storeMailbox.txGetBucket(tx).Bucket(apiIDsBucket)
+}
+
+// txGetDeletedIDsBucket returns the bucket with messagesID marked as deleted
+func (storeMailbox *Mailbox) txGetDeletedIDsBucket(tx *bolt.Tx) *bolt.Bucket {
+	// There should be no error since it _...returns an error if the bucket
+	// name is blank, or if the bucket name is too long._
+	bucket, err := storeMailbox.txGetBucket(tx).CreateBucketIfNotExists(deletedIDsBucket)
+	if err != nil || bucket == nil {
+		storeMailbox.log.WithError(err).Error("Cannot create or get bucket with deleted IDs.")
+	}
+	return bucket
 }
 
 // txGetBucket returns the bucket of mailbox containing mapping buckets.

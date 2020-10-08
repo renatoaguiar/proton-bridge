@@ -31,7 +31,7 @@ type PMAPIController interface {
 	AddUser(user *pmapi.User, addresses *pmapi.AddressList, password string, twoFAEnabled bool) error
 	AddUserLabel(username string, label *pmapi.Label) error
 	GetLabelIDs(username string, labelNames []string) ([]string, error)
-	AddUserMessage(username string, message *pmapi.Message) error
+	AddUserMessage(username string, message *pmapi.Message) (string, error)
 	GetMessageID(username, messageIndex string) string
 	GetMessages(username, labelID string) ([]*pmapi.Message, error)
 	ReorderAddresses(user *pmapi.User, addressIDs []string) error

@@ -45,11 +45,11 @@ func apiIsCalledWith(endpoint string, data *gherkin.DocString) error {
 }
 
 func messageIsSentWithAPICall(data *gherkin.DocString) error {
-	endpoint := "POST /messages"
+	endpoint := "POST /mail/v4/messages"
 	if err := apiIsCalledWith(endpoint, data); err != nil {
 		return err
 	}
-	for _, request := range ctx.GetPMAPIController().GetCalls("POST", "/messages") {
+	for _, request := range ctx.GetPMAPIController().GetCalls("POST", "/mail/v4/messages") {
 		if !checkAllRequiredFieldsForSendingMessage(request) {
 			return fmt.Errorf("%s was not called with all required fields: %s", endpoint, request)
 		}
@@ -103,7 +103,7 @@ func apiMailboxForAddressOfUserHasMessages(mailboxName, bddAddressID, bddUserID 
 
 	head := messages.Rows[0].Cells
 	for _, row := range messages.Rows[1:] {
-		found, err := messagesContainsMessageRow(account, pmapiMessages, head, row)
+		found, err := pmapiMessagesContainsMessageRow(account, pmapiMessages, head, row)
 		if err != nil {
 			return err
 		}

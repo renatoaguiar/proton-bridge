@@ -21,12 +21,9 @@ import (
 	"fmt"
 	"io"
 	"mime"
-	"mime/quotedprintable"
 	"regexp"
 	"strings"
 	"unicode/utf8"
-
-	"encoding/base64"
 
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
@@ -37,7 +34,7 @@ import (
 
 var wordDec = &mime.WordDecoder{
 	CharsetReader: func(charset string, input io.Reader) (io.Reader, error) {
-		dec, err := selectDecoder(charset)
+		dec, err := SelectDecoder(charset)
 		if err != nil {
 			return nil, err
 		}
@@ -166,7 +163,7 @@ func getEncoding(charset string) (enc encoding.Encoding, err error) {
 	return
 }
 
-func selectDecoder(charset string) (decoder *encoding.Decoder, err error) {
+func SelectDecoder(charset string) (decoder *encoding.Decoder, err error) {
 	var enc encoding.Encoding
 	lcharset := strings.Trim(strings.ToLower(charset), " \t\r\n")
 	switch lcharset {
@@ -211,7 +208,7 @@ func DecodeCharset(original []byte, contentType string) ([]byte, error) {
 		}
 
 		if charset, ok := params["charset"]; ok {
-			decoder, err := selectDecoder(charset)
+			decoder, err := SelectDecoder(charset)
 			if err != nil {
 				return original, errors.Wrap(err, "unknown charset was specified")
 			}
@@ -244,19 +241,6 @@ func DecodeCharset(original []byte, contentType string) ([]byte, error) {
 	}
 
 	return decoded, nil
-}
-
-// DecodeContentEncoding wraps the reader with decoder based on content encoding.
-func DecodeContentEncoding(r io.Reader, contentEncoding string) (d io.Reader) {
-	switch strings.ToLower(contentEncoding) {
-	case "quoted-printable":
-		d = quotedprintable.NewReader(r)
-	case "base64":
-		d = base64.NewDecoder(base64.StdEncoding, r)
-	case "7bit", "8bit", "binary", "": // Nothing to do
-		d = r
-	}
-	return
 }
 
 // ParseMediaType from MIME doesn't support RFC2231 for non asci / utf8 encodings so we have to pre-parse it.

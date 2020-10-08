@@ -15,11 +15,27 @@
 // You should have received a copy of the GNU General Public License
 // along with ProtonMail Bridge.  If not, see <https://www.gnu.org/licenses/>.
 
-// +build pmapi_dev
+package parser
 
-package pmapi
+import (
+	"bytes"
+	"strings"
+	"testing"
 
-func init() {
-	rootURL = "dev.protonmail.com/api"
-	rootScheme = "https"
+	"github.com/stretchr/testify/assert"
+)
+
+func TestParserWrite(t *testing.T) {
+	p := newTestParser(t, "text_html_octet_attachment.eml")
+
+	w := p.NewWriter()
+
+	buf := new(bytes.Buffer)
+
+	assert.NoError(t, w.Write(buf))
+	assert.Equal(t, getFileAsString("text_html_octet_attachment.eml"), crlf(buf.String()))
+}
+
+func crlf(s string) string {
+	return strings.ReplaceAll(s, "\r\n", "\n")
 }

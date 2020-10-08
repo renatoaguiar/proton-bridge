@@ -252,7 +252,7 @@ Feature: SMTP sending of plain messages
           ],
           "CCList": [],
           "BCCList": [],
-          "MIMEType": "text/html"
+          "MIMEType": "text/plain"
         }
       }
       """

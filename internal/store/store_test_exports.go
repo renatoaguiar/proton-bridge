@@ -26,6 +26,10 @@ import (
 	bolt "go.etcd.io/bbolt"
 )
 
+func (loop *eventLoop) IsRunning() bool {
+	return loop.isRunning
+}
+
 // TestSync triggers a sync of the store.
 func (store *Store) TestSync() {
 	store.lock.Lock()
@@ -102,11 +106,13 @@ func txDumpMailsFactory(tb assert.TestingT) func(tx *bolt.Tx) error {
 		err := mailboxes.ForEach(func(mboxName, mboxData []byte) error {
 			fmt.Println("mbox:", string(mboxName))
 			b := mailboxes.Bucket(mboxName).Bucket(imapIDsBucket)
+			deletedMailboxes := mailboxes.Bucket(mboxName).Bucket(deletedIDsBucket)
 			c := b.Cursor()
 			i := 0
 			for imapID, apiID := c.First(); imapID != nil; imapID, apiID = c.Next() {
 				i++
-				fmt.Println("  ", i, "imap", btoi(imapID), "api", string(apiID))
+				isDeleted := deletedMailboxes != nil && deletedMailboxes.Get(apiID) != nil
+				fmt.Println("  ", i, "imap", btoi(imapID), "api", string(apiID), "isDeleted", isDeleted)
 				data := metadata.Get(apiID)
 				if !assert.NotNil(tb, data) {
 					continue

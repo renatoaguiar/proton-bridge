@@ -2,14 +2,62 @@
 
 Changelog [format](http://keepachangelog.com/en/1.0.0/)
 
-## Unreleased
+## [IE 1.1.2] Danube (beta 2020-09-xx)
 
-## [IE 0.2.x] Congo
+### Fixed
+* GODT-770 Better handling of extraneous end-of-mail indicator.
+
+### Changed
+* Bump crypto version to v0.0.0-20200818122824-ed5d25e28db8
+
+
+## [IE 1.1.1] Danube (beta 2020-09-xx) [Bridge 1.4.1] Forth (beta 2020-09-xx)
+
+### Fixed
+* GODT-752 Parsing message with empty addresses.
+* GODT-752 Parsing non-utf8 multipart/alternative message.
+* GODT-752 Parsing message with duplicate charset parameter.
+
+## [IE 1.1.0] Danube
+
+### Fixed
+* GODT-703 Import-Export showed always at least one total message.
+* GODT-738 Fix for mbox files with long lines.
+
+## [Bridge 1.4.0] Forth
+
+### Added
+* GODT-682 Persistent anonymous API cookies for Import-Export.
+* GODT-357 Use go-message to make a better message parser.
+* GODT-720 Time measurement of progress for Import-Export.
+
+### Changed
+* GODT-511 User agent format changed.
+* Unsilent errors reading mbox files.
+* GODT-692 QA build with option to change API URL by ENV variable.
+* GODT-704 User agent detected by fake IMAP extension instead of AUTH callback (some clients use LOGIN instead of AUTH).
+* GODT-695 Parallel upload for ProtonMail target.
+
+### Removed
+* GODT-519 Unused AUTH scope parsing methods.
+
+### Fixed
+* GODT-698 Use correct package type for signed PGP/Inline messages.
+* Generic bug report window title.
+* Fix missing check for unencrypted recipients during sending.
+* Version checking for catalina.
+* GODT-730 Limit maximal TLS version for Yahoo IMAP server.
+
+
+## [IE 1.0.x] Congo (v1.0.0 live 2020-09-08)
 
 ### Added
 * GODT-633 Persistent anonymous API cookies for better load balancing and abuse detection. 
+* GODT-461 Add support for `\Deleted` flag.
 
 ### Changed
+* GODT-462 Pausing event loop while FETCHing to prevent EXPUNGE
+* Wait for unilateral response to be delivered
 * GODT-409 Set flags have to replace all flags.
 * GODT-531 Better way to add trusted certificate in macOS.
 * Bumped golangci-lint to v1.29.0
@@ -36,6 +84,8 @@ Changelog [format](http://keepachangelog.com/en/1.0.0/)
     * golang.org/x/text v0.3.2 -> v0.3.3
 * Set first-start to false in bridge, not in frontend.
 * GODT-400 Refactor sendingInfo.
+* GODT-513 Update routes to API v4.
+* GODT-551 Do not ignore errors during message flagging.
 * GODT-380 Adding IE GUI to Bridge repo and building
     * BR: extend functionality of PopupDialog
     * BR: makefile APP_VERSION instead of BRIDGE_VERSION
@@ -49,11 +99,14 @@ Changelog [format](http://keepachangelog.com/en/1.0.0/)
     * IE: Removed `onLoginFinished`
     * Structure for transfer rules in QML
 * GODT-213 Convert panics from message parser to error.
+* GODT-585 Do not allow deleting messages from All Mail.
 
 ### Fixed
 * GODT-655 Fix date picker with automatic Windows DST
 * GODT-454 Fix send on closed channel when receiving unencrypted send confirmation from GUI.
 * GODT-597 Duplicate sending when draft creation takes too long
+* GODT-634 Hover on links in popups.
+
 
 
 ## [v1.3.x] Emma (v1.3.2 beta 2020-08-04, v1.3.3 beta 2020-08-06, v1.3.3 live 2020-08-12)

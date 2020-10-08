@@ -70,6 +70,8 @@ var (
 	//       * {imapUID} -> string messageID
 	//     * api_ids
 	//       * {messageID} -> uint32 imapUID
+	//     * deleted_ids (can be missing or have no keys)
+	//       * {messageID} -> true
 	metadataBucket    = []byte("metadata")          //nolint[gochecknoglobals]
 	countsBucket      = []byte("counts")            //nolint[gochecknoglobals]
 	addressInfoBucket = []byte("address_info")      //nolint[gochecknoglobals]
@@ -78,6 +80,7 @@ var (
 	mailboxesBucket   = []byte("mailboxes")         //nolint[gochecknoglobals]
 	imapIDsBucket     = []byte("imap_ids")          //nolint[gochecknoglobals]
 	apiIDsBucket      = []byte("api_ids")           //nolint[gochecknoglobals]
+	deletedIDsBucket  = []byte("deleted_ids")       //nolint[gochecknoglobals]
 	mboxVersionBucket = []byte("mailboxes_version") //nolint[gochecknoglobals]
 
 	// ErrNoSuchAPIID when mailbox does not have API ID.
@@ -346,6 +349,18 @@ func (store *Store) addAddress(address, addressID string, labels []*pmapi.Label)
 	store.addresses[addressID] = addr
 
 	return
+}
+
+// PauseEventLoop sets whether the ticker is periodically polling or not.
+func (store *Store) PauseEventLoop(pause bool) {
+	store.lock.Lock()
+	defer store.lock.Unlock()
+
+	store.log.WithField("pause", pause).Info("Pausing event loop")
+
+	if store.eventLoop != nil {
+		store.eventLoop.isTickerPaused = pause
+	}
 }
 
 // Close stops the event loop and closes the database to free the file.

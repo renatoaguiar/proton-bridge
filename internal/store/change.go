@@ -48,18 +48,26 @@ func (store *Store) imapNotice(address, notice string) {
 	store.imapSendUpdate(update)
 }
 
-func (store *Store) imapUpdateMessage(address, mailboxName string, uid, sequenceNumber uint32, msg *pmapi.Message) {
+func (store *Store) imapUpdateMessage(
+	address, mailboxName string,
+	uid, sequenceNumber uint32,
+	msg *pmapi.Message, hasDeletedFlag bool,
+) {
 	store.log.WithFields(logrus.Fields{
 		"address": address,
 		"mailbox": mailboxName,
 		"seqNum":  sequenceNumber,
 		"uid":     uid,
 		"flags":   message.GetFlags(msg),
+		"deleted": hasDeletedFlag,
 	}).Trace("IDLE update")
 	update := new(imapBackend.MessageUpdate)
 	update.Update = imapBackend.NewUpdate(address, mailboxName)
 	update.Message = imap.NewMessage(sequenceNumber, []imap.FetchItem{imap.FetchFlags, imap.FetchUid})
 	update.Message.Flags = message.GetFlags(msg)
+	if hasDeletedFlag {
+		update.Message.Flags = append(update.Message.Flags, imap.DeletedFlag)
+	}
 	update.Message.Uid = uid
 	store.imapSendUpdate(update)
 }
@@ -114,10 +122,22 @@ func (store *Store) imapSendUpdate(update imapBackend.Update) {
 		return
 	}
 
+	done := update.Done()
+	go func() {
+		// This timeout is to not keep running many blocked goroutines.
+		// In case nothing listens to this channel, this thread should stop.
+		select {
+		case store.imapUpdates <- update:
+		case <-time.After(1 * time.Second):
+			store.log.Warn("IMAP update could not be sent (timeout).")
+		}
+	}()
+
+	// This timeout is to not block IMAP backend by wait for IMAP client.
 	select {
+	case <-done:
 	case <-time.After(1 * time.Second):
-		store.log.Error("Could not send IMAP update (timeout)")
+		store.log.Warn("IMAP update could not be delivered (timeout).")
 		return
-	case store.imapUpdates <- update:
 	}
 }

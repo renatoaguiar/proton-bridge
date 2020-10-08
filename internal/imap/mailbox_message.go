@@ -37,7 +37,6 @@ import (
 	"github.com/ProtonMail/proton-bridge/pkg/pmapi"
 	"github.com/emersion/go-imap"
 	"github.com/hashicorp/go-multierror"
-	enmime "github.com/jhillyerd/enmime"
 	"github.com/pkg/errors"
 	openpgperrors "golang.org/x/crypto/openpgp/errors"
 )
@@ -221,6 +220,9 @@ func (im *imapMailbox) getMessage(storeMessage storeMessageProvider, items []ima
 			}
 		case imap.FetchFlags:
 			msg.Flags = message.GetFlags(m)
+			if storeMessage.IsMarkedDeleted() {
+				msg.Flags = append(msg.Flags, imap.DeletedFlag)
+			}
 		case imap.FetchInternalDate:
 			msg.InternalDate = time.Unix(m.Time, 0)
 		case imap.FetchRFC822Size:
@@ -238,24 +240,28 @@ func (im *imapMailbox) getMessage(storeMessage storeMessageProvider, items []ima
 				return nil, err
 			}
 		default:
-			s := item
-
-			var section *imap.BodySectionName
-			if section, err = imap.ParseBodySectionName(s); err != nil {
-				err = nil // Ignore error
-				break
-			}
-
-			var literal imap.Literal
-			if literal, err = im.getMessageBodySection(storeMessage, section); err != nil {
+			if err = im.getLiteralForSection(item, msg, storeMessage); err != nil {
 				return
 			}
-
-			msg.Body[section] = literal
 		}
 	}
 
 	return msg, err
+}
+
+func (im *imapMailbox) getLiteralForSection(itemSection imap.FetchItem, msg *imap.Message, storeMessage storeMessageProvider) error {
+	section, err := imap.ParseBodySectionName(itemSection)
+	if err != nil { // Ignore error
+		return nil
+	}
+
+	var literal imap.Literal
+	if literal, err = im.getMessageBodySection(storeMessage, section); err != nil {
+		return err
+	}
+
+	msg.Body[section] = literal
+	return nil
 }
 
 func (im *imapMailbox) getBodyStructure(storeMessage storeMessageProvider) (
@@ -442,17 +448,6 @@ func (im *imapMailbox) writeMessageBody(w io.Writer, m *pmapi.Message) (err erro
 		_, _ = io.WriteString(w, m.Body)
 		err = nil
 	}
-
-	return
-}
-
-func (im *imapMailbox) writeAndParseMIMEBody(m *pmapi.Message) (mime *enmime.Envelope, err error) { //nolint[unused]
-	b := &bytes.Buffer{}
-	if err = im.writeMessageBody(b, m); err != nil {
-		return
-	}
-
-	mime, err = enmime.ReadEnvelope(b)
 
 	return
 }

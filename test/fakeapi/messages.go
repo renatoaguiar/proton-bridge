@@ -20,10 +20,9 @@ package fakeapi
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
-	"net/mail"
 	"time"
 
+	"github.com/ProtonMail/proton-bridge/pkg/message"
 	"github.com/ProtonMail/proton-bridge/pkg/pmapi"
 	"github.com/pkg/errors"
 )
@@ -31,7 +30,7 @@ import (
 var errWasNotUpdated = errors.New("message was not updated")
 
 func (api *FakePMAPI) GetMessage(apiID string) (*pmapi.Message, error) {
-	if err := api.checkAndRecordCall(GET, "/messages/"+apiID, nil); err != nil {
+	if err := api.checkAndRecordCall(GET, "/mail/v4/messages/"+apiID, nil); err != nil {
 		return nil, err
 	}
 	for _, message := range api.messages {
@@ -51,7 +50,7 @@ func (api *FakePMAPI) GetMessage(apiID string) (*pmapi.Message, error) {
 //  * Attachments
 //  * AutoWildcard
 func (api *FakePMAPI) ListMessages(filter *pmapi.MessagesFilter) ([]*pmapi.Message, int, error) {
-	if err := api.checkAndRecordCall(GET, "/messages", filter); err != nil {
+	if err := api.checkAndRecordCall(GET, "/mail/v4/messages", filter); err != nil {
 		return nil, 0, err
 	}
 	pageSize := filter.PageSize
@@ -152,7 +151,7 @@ func copyFilteredMessage(message *pmapi.Message) *pmapi.Message {
 }
 
 func (api *FakePMAPI) CreateDraft(message *pmapi.Message, parentID string, action int) (*pmapi.Message, error) {
-	if err := api.checkAndRecordCall(POST, "/messages", &pmapi.DraftReq{
+	if err := api.checkAndRecordCall(POST, "/mail/v4/messages", &pmapi.DraftReq{
 		Message:              message,
 		ParentID:             parentID,
 		Action:               action,
@@ -176,7 +175,7 @@ func (api *FakePMAPI) CreateDraft(message *pmapi.Message, parentID string, actio
 }
 
 func (api *FakePMAPI) SendMessage(messageID string, sendMessageRequest *pmapi.SendMessageReq) (sent, parent *pmapi.Message, err error) {
-	if err := api.checkAndRecordCall(POST, "/messages/"+messageID, sendMessageRequest); err != nil {
+	if err := api.checkAndRecordCall(POST, "/mail/v4/messages/"+messageID, sendMessageRequest); err != nil {
 		return nil, nil, err
 	}
 	message, err := api.GetMessage(messageID)
@@ -212,33 +211,23 @@ func (api *FakePMAPI) Import(importMessageRequests []*pmapi.ImportMsgReq) ([]*pm
 }
 
 func (api *FakePMAPI) generateMessageFromImportRequest(msgReq *pmapi.ImportMsgReq) (*pmapi.Message, error) {
-	mailMessage, err := mail.ReadMessage(bytes.NewBuffer(msgReq.Body))
+	m, _, _, _, err := message.Parse(bytes.NewReader(msgReq.Body), "", "") // nolint[dogsled]
 	if err != nil {
 		return nil, err
 	}
-	body, err := ioutil.ReadAll(mailMessage.Body)
-	if err != nil {
-		return nil, err
-	}
-	sender, err := mail.ParseAddress(mailMessage.Header.Get("From"))
-	if err != nil {
-		return nil, err
-	}
-	toList, err := mail.ParseAddressList(mailMessage.Header.Get("To"))
-	if err != nil {
-		return nil, err
-	}
+
 	messageID := api.controller.messageIDGenerator.next("")
+
 	return &pmapi.Message{
 		ID:        messageID,
 		AddressID: msgReq.AddressID,
-		Sender:    sender,
-		ToList:    toList,
-		Subject:   mailMessage.Header.Get("Subject"),
+		Sender:    m.Sender,
+		ToList:    m.ToList,
+		Subject:   m.Subject,
 		Unread:    msgReq.Unread,
 		LabelIDs:  append(msgReq.LabelIDs, pmapi.AllMailLabel),
-		Body:      string(body),
-		Header:    mailMessage.Header,
+		Body:      m.Body,
+		Header:    m.Header,
 		Flags:     msgReq.Flags,
 		Time:      msgReq.Time,
 	}, nil
@@ -250,7 +239,7 @@ func (api *FakePMAPI) addMessage(message *pmapi.Message) {
 }
 
 func (api *FakePMAPI) DeleteMessages(apiIDs []string) error {
-	err := api.deleteMessages(PUT, "/messages/delete", &pmapi.MessagesActionReq{
+	err := api.deleteMessages(PUT, "/mail/v4/messages/delete", &pmapi.MessagesActionReq{
 		IDs: apiIDs,
 	}, func(message *pmapi.Message) bool {
 		return hasItem(apiIDs, message.ID)
@@ -267,7 +256,7 @@ func (api *FakePMAPI) DeleteMessages(apiIDs []string) error {
 }
 
 func (api *FakePMAPI) EmptyFolder(labelID string, addressID string) error {
-	err := api.deleteMessages(DELETE, "/messages/empty?LabelID="+labelID+"&AddressID="+addressID, nil, func(message *pmapi.Message) bool {
+	err := api.deleteMessages(DELETE, "/mail/v4/messages/empty?LabelID="+labelID+"&AddressID="+addressID, nil, func(message *pmapi.Message) bool {
 		return hasItem(message.LabelIDs, labelID) && message.AddressID == addressID
 	})
 	if err != nil {
@@ -288,7 +277,8 @@ func (api *FakePMAPI) deleteMessages(method method, path string, request interfa
 	newMessages := []*pmapi.Message{}
 	for _, message := range api.messages {
 		if shouldBeDeleted(message) {
-			if hasItem(message.LabelIDs, pmapi.TrashLabel) {
+			if hasItem(message.LabelIDs, pmapi.TrashLabel) ||
+				hasItem(message.LabelIDs, pmapi.SpamLabel) {
 				api.addEventMessage(pmapi.EventDelete, message)
 				continue
 			}
@@ -302,7 +292,7 @@ func (api *FakePMAPI) deleteMessages(method method, path string, request interfa
 }
 
 func (api *FakePMAPI) LabelMessages(apiIDs []string, labelID string) error {
-	return api.updateMessages(PUT, "/messages/label", &pmapi.LabelMessagesReq{
+	return api.updateMessages(PUT, "/mail/v4/messages/label", &pmapi.LabelMessagesReq{
 		IDs:     apiIDs,
 		LabelID: labelID,
 	}, apiIDs, func(message *pmapi.Message) error {
@@ -328,7 +318,7 @@ func (api *FakePMAPI) LabelMessages(apiIDs []string, labelID string) error {
 }
 
 func (api *FakePMAPI) UnlabelMessages(apiIDs []string, labelID string) error {
-	return api.updateMessages(PUT, "/messages/unlabel", &pmapi.LabelMessagesReq{
+	return api.updateMessages(PUT, "/mail/v4/messages/unlabel", &pmapi.LabelMessagesReq{
 		IDs:     apiIDs,
 		LabelID: labelID,
 	}, apiIDs, func(message *pmapi.Message) error {
@@ -346,7 +336,7 @@ func (api *FakePMAPI) UnlabelMessages(apiIDs []string, labelID string) error {
 }
 
 func (api *FakePMAPI) MarkMessagesRead(apiIDs []string) error {
-	return api.updateMessages(PUT, "/messages/read", &pmapi.MessagesActionReq{
+	return api.updateMessages(PUT, "/mail/v4/messages/read", &pmapi.MessagesActionReq{
 		IDs: apiIDs,
 	}, apiIDs, func(message *pmapi.Message) error {
 		if message.Unread == 0 {
@@ -358,7 +348,7 @@ func (api *FakePMAPI) MarkMessagesRead(apiIDs []string) error {
 }
 
 func (api *FakePMAPI) MarkMessagesUnread(apiIDs []string) error {
-	err := api.updateMessages(PUT, "/messages/unread", &pmapi.MessagesActionReq{
+	err := api.updateMessages(PUT, "/mail/v4/messages/unread", &pmapi.MessagesActionReq{
 		IDs: apiIDs,
 	}, apiIDs, func(message *pmapi.Message) error {
 		if message.Unread == 1 {

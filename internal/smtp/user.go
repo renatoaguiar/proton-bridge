@@ -21,6 +21,7 @@ package smtp
 
 import (
 	"encoding/base64"
+	"fmt"
 	"io"
 	"mime"
 	"net/mail"
@@ -179,11 +180,12 @@ func (su *smtpUser) Send(from string, to []string, messageReader io.Reader) (err
 			return err
 		}
 
-		attachedPublicKeyName = "publickey - " + kr.GetIdentities()[0].Name
+		attachedPublicKeyName = fmt.Sprintf("publickey - %v - %v", kr.GetIdentities()[0].Name, firstKey.GetFingerprint()[:8])
 	}
 
 	message, mimeBody, plainBody, attReaders, err := message.Parse(messageReader, attachedPublicKey, attachedPublicKeyName)
 	if err != nil {
+		log.WithError(err).Error("Failed to parse message")
 		return
 	}
 	clearBody := message.Body
@@ -290,6 +292,9 @@ func (su *smtpUser) Send(from string, to []string, messageReader io.Reader) (err
 		}
 
 		sendPreferences, err := su.getSendPreferences(email, message.MIMEType, mailSettings)
+		if !sendPreferences.Encrypt {
+			containsUnencryptedRecipients = true
+		}
 		if err != nil {
 			return err
 		}
@@ -359,7 +364,9 @@ func (su *smtpUser) Send(from string, to []string, messageReader io.Reader) (err
 			return errors.New("error decoding subject message " + message.Header.Get("Subject"))
 		}
 		if !su.continueSendingUnencryptedMail(subject) {
-			_ = su.client().DeleteMessages([]string{message.ID})
+			if err := su.client().DeleteMessages([]string{message.ID}); err != nil {
+				log.WithError(err).Warn("Failed to delete canceled messages")
+			}
 			return errors.New("sending was canceled by user")
 		}
 	}

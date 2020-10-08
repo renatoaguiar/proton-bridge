@@ -15,11 +15,35 @@
 // You should have received a copy of the GNU General Public License
 // along with ProtonMail Bridge.  If not, see <https://www.gnu.org/licenses/>.
 
-// +build pmapi_nopin
+// +build pmapi_env
 
 package pmapi
 
+import (
+	"crypto/tls"
+	"net/http"
+	"os"
+	"strings"
+)
+
 func init() {
+	// This config allows to dynamically change ROOT URL.
+	fullRootURL := os.Getenv("PMAPI_ROOT_URL")
+	if strings.HasPrefix(fullRootURL, "http") {
+		rootURLparts := strings.SplitN(fullRootURL, "://", 2)
+		rootScheme = rootURLparts[0]
+		rootURL = rootURLparts[1]
+	} else if fullRootURL != "" {
+		rootURL = fullRootURL
+		rootScheme = "https"
+	}
+
+	// TLS certificate of testing environment might be self-signed.
+	defaultTransport = &http.Transport{
+		Proxy:           http.ProxyFromEnvironment,
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+	}
+
 	// This config disables TLS cert checking.
 	checkTLSCerts = false
 }

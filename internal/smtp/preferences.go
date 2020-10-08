@@ -95,9 +95,8 @@ func (b *sendPreferencesBuilder) shouldEncrypt() bool {
 	return false
 }
 
-func (b *sendPreferencesBuilder) withSign() {
-	v := true
-	b.sign = &v
+func (b *sendPreferencesBuilder) withSign(sign bool) {
+	b.sign = &sign
 }
 
 func (b *sendPreferencesBuilder) withSignDefault() {
@@ -192,7 +191,7 @@ func (b *sendPreferencesBuilder) build() (p SendPreferences) {
 			p.Scheme = pmapi.PGPMIMEPackage
 		}
 
-	case b.shouldSign() && !b.shouldEncrypt():
+	case b.shouldSign() && !b.shouldEncrypt() && b.getScheme() == pgpMIME:
 		p.Scheme = pmapi.ClearMIMEPackage
 
 	default:
@@ -258,7 +257,7 @@ func (b *sendPreferencesBuilder) setInternalPGPSettings(
 
 	// We always encrypt and sign internal mail.
 	b.withEncrypt(true)
-	b.withSign()
+	b.withSign(true)
 
 	// We use a custom scheme for internal messages.
 	b.withScheme(pmInternal)
@@ -369,7 +368,7 @@ func (b *sendPreferencesBuilder) setExternalPGPSettingsWithWKDKeys(
 
 	// We always encrypt and sign external mail if WKD keys are present.
 	b.withEncrypt(true)
-	b.withSign()
+	b.withSign(true)
 
 	// If the contact has a specific Scheme preference, we set it (otherwise we
 	// leave it unset to allow it to be filled in with the default value later).
@@ -402,9 +401,13 @@ func (b *sendPreferencesBuilder) setExternalPGPSettingsWithoutWKDKeys(
 ) (err error) {
 	b.withEncrypt(vCardData.Encrypt)
 
+	if vCardData.SignIsSet {
+		b.withSign(vCardData.Sign)
+	}
+
 	// Sign must be enabled whenever encrypt is.
-	if vCardData.Sign || vCardData.Encrypt {
-		b.withSign()
+	if vCardData.Encrypt {
+		b.withSign(true)
 	}
 
 	// If the contact has a specific Scheme preference, we set it (otherwise we
@@ -475,7 +478,7 @@ func (b *sendPreferencesBuilder) setEncryptionPreferences(mailSettings pmapi.Mai
 	}
 
 	if b.shouldEncrypt() {
-		b.withSign()
+		b.withSign(true)
 	}
 
 	// If undefined, default to the user mail setting "Default PGP scheme".
@@ -495,12 +498,7 @@ func (b *sendPreferencesBuilder) setEncryptionPreferences(mailSettings pmapi.Mai
 	if b.shouldSign() && b.getScheme() == pgpInline {
 		b.withMIMEType("text/plain")
 	} else {
-		switch mailSettings.ComposerMode {
-		case pmapi.ComposerModeNormal:
-			b.withMIMETypeDefault("text/html")
-		case pmapi.ComposerModePlain:
-			b.withMIMETypeDefault("text/plain")
-		}
+		b.withMIMETypeDefault(mailSettings.DraftMIMEType)
 	}
 }
 

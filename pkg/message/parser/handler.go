@@ -15,24 +15,45 @@
 // You should have received a copy of the GNU General Public License
 // along with ProtonMail Bridge.  If not, see <https://www.gnu.org/licenses/>.
 
-// +build pmapi_local
-
-package pmapi
+package parser
 
 import (
-	"crypto/tls"
-	"net/http"
+	"regexp"
 )
 
-func init() {
-	// Use port above 1000 which doesn't need root access to start anything on it.
-	// Now the port is rounded pi. :-)
-	rootURL = "127.0.0.1:3142/api"
-	rootScheme = "http"
+type HandlerFunc func(*Part) error
 
-	// TLS certificate is self-signed
-	defaultTransport = &http.Transport{
-		Proxy:           http.ProxyFromEnvironment,
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+type handler struct {
+	typeRegExp, dispRegExp *regexp.Regexp
+	fn                     HandlerFunc
+}
+
+func (h *handler) matchPart(p *Part) bool {
+	return h.matchType(p) || h.matchDisp(p)
+}
+
+func (h *handler) matchType(p *Part) bool {
+	if h.typeRegExp == nil {
+		return false
 	}
+
+	t, _, err := p.ContentType()
+	if err != nil {
+		t = ""
+	}
+
+	return h.typeRegExp.MatchString(t)
+}
+
+func (h *handler) matchDisp(p *Part) bool {
+	if h.dispRegExp == nil {
+		return false
+	}
+
+	disp, _, err := p.Header.ContentDisposition()
+	if err != nil {
+		disp = ""
+	}
+
+	return h.dispRegExp.MatchString(disp)
 }

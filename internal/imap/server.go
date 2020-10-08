@@ -28,6 +28,7 @@ import (
 	imapid "github.com/ProtonMail/go-imap-id"
 	"github.com/ProtonMail/proton-bridge/internal/bridge"
 	"github.com/ProtonMail/proton-bridge/internal/events"
+	"github.com/ProtonMail/proton-bridge/internal/imap/id"
 	"github.com/ProtonMail/proton-bridge/internal/imap/uidplus"
 	"github.com/ProtonMail/proton-bridge/pkg/listener"
 	"github.com/emersion/go-imap"
@@ -60,34 +61,12 @@ func NewIMAPServer(debugClient, debugServer bool, port int, tls *tls.Config, ima
 	s.UpgradeError = imapBackend.upgradeError
 
 	serverID := imapid.ID{
-		imapid.FieldName:       "ProtonMail",
+		imapid.FieldName:       "ProtonMail Bridge",
 		imapid.FieldVendor:     "Proton Technologies AG",
 		imapid.FieldSupportURL: "https://protonmail.com/support",
 	}
 
 	s.EnableAuth(sasl.Login, func(conn imapserver.Conn) sasl.Server {
-		conn.Server().ForEachConn(func(candidate imapserver.Conn) {
-			if id, ok := candidate.(imapid.Conn); ok {
-				if conn.Context() == candidate.Context() {
-					// ID is not available right at the beginning of the connection.
-					// Clients send ID quickly after AUTH. We need to wait for it.
-					go func() {
-						start := time.Now()
-						for {
-							if id.ID() != nil {
-								imapBackend.setLastMailClient(id.ID())
-								break
-							}
-							if time.Since(start) > 10*time.Second {
-								break
-							}
-							time.Sleep(100 * time.Millisecond)
-						}
-					}()
-				}
-			}
-		})
-
 		return sasl.NewLoginServer(func(address, password string) error {
 			user, err := conn.Server().Backend.Login(nil, address, password)
 			if err != nil {
@@ -105,7 +84,7 @@ func NewIMAPServer(debugClient, debugServer bool, port int, tls *tls.Config, ima
 		imapidle.NewExtension(),
 		imapmove.NewExtension(),
 		imapspecialuse.NewExtension(),
-		imapid.NewExtension(serverID),
+		id.NewExtension(serverID, imapBackend.bridge),
 		imapquota.NewExtension(),
 		imapappendlimit.NewExtension(),
 		imapunselect.NewExtension(),

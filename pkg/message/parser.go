@@ -19,458 +19,501 @@ package message
 
 import (
 	"bytes"
-	"crypto/sha256"
-	"encoding/base64"
-	"encoding/hex"
 	"fmt"
 	"io"
-	"io/ioutil"
-	"math/rand"
 	"mime"
-	"mime/quotedprintable"
 	"net/mail"
 	"net/textproto"
-	"regexp"
-	"strconv"
 	"strings"
 
+	"github.com/ProtonMail/proton-bridge/pkg/message/parser"
 	pmmime "github.com/ProtonMail/proton-bridge/pkg/mime"
 	"github.com/ProtonMail/proton-bridge/pkg/pmapi"
+	"github.com/emersion/go-message"
 	"github.com/jaytaylor/html2text"
+	"github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
 )
 
-func parseAttachment(filename string, mediaType string, h textproto.MIMEHeader) (att *pmapi.Attachment) {
-	if decoded, err := pmmime.DecodeHeader(filename); err == nil {
-		filename = decoded
-	}
-	if filename == "" {
-		ext, err := mime.ExtensionsByType(mediaType)
-		if err == nil && len(ext) > 0 {
-			filename = "attachment" + ext[0]
-		}
+func Parse(r io.Reader, key, keyName string) (m *pmapi.Message, mimeBody, plainBody string, attReaders []io.Reader, err error) {
+	logrus.Trace("Parsing message")
+
+	p, err := parser.New(r)
+	if err != nil {
+		err = errors.Wrap(err, "failed to create new parser")
+		return
 	}
 
-	att = &pmapi.Attachment{
-		Name:     filename,
-		MIMEType: mediaType,
-		Header:   h,
+	if err = convertForeignEncodings(p); err != nil {
+		err = errors.Wrap(err, "failed to convert foreign encodings")
+		return
 	}
 
-	headerContentID := strings.Trim(h.Get("Content-Id"), " <>")
+	m = pmapi.NewMessage()
 
-	if headerContentID != "" {
-		att.ContentID = headerContentID
+	if err = parseMessageHeader(m, p.Root().Header); err != nil {
+		err = errors.Wrap(err, "failed to parse message header")
+		return
 	}
 
-	return
+	if m.Attachments, attReaders, err = collectAttachments(p); err != nil {
+		err = errors.Wrap(err, "failed to collect attachments")
+		return
+	}
+
+	if m.Body, plainBody, err = buildBodies(p); err != nil {
+		err = errors.Wrap(err, "failed to build bodies")
+		return
+	}
+
+	if m.MIMEType, err = determineMIMEType(p); err != nil {
+		err = errors.Wrap(err, "failed to determine mime type")
+		return
+	}
+
+	// We only attach the public key manually to the MIME body for
+	// signed/encrypted external recipients. It's not important for it to be
+	// collected as an attachment; that's already done when we upload the draft.
+	if key != "" {
+		attachPublicKey(p.Root(), key, keyName)
+	}
+
+	mimeBodyBuffer := new(bytes.Buffer)
+
+	if err = p.NewWriter().Write(mimeBodyBuffer); err != nil {
+		err = errors.Wrap(err, "failed to write out mime message")
+		return
+	}
+
+	return m, mimeBodyBuffer.String(), plainBody, attReaders, nil
 }
 
-var reEmailComment = regexp.MustCompile("[(][^)]*[)]") //nolint[gochecknoglobals]
+func convertForeignEncodings(p *parser.Parser) error {
+	logrus.Trace("Converting foreign encodings")
 
-// parseAddressComment removes the comments completely even though they should be allowed
-// http://tools.wordtothewise.com/rfc/822
-// NOTE: This should be supported in go>1.10 but it seems it's not ¯\_(ツ)_/¯
-func parseAddressComment(raw string) string {
-	return reEmailComment.ReplaceAllString(raw, "")
+	return p.NewWalker().
+		RegisterContentTypeHandler("text/html", func(p *parser.Part) error {
+			if err := p.ConvertToUTF8(); err != nil {
+				return err
+			}
+
+			return p.ConvertMetaCharset()
+		}).
+		RegisterContentTypeHandler("text/.*", func(p *parser.Part) error {
+			return p.ConvertToUTF8()
+		}).
+		RegisterDefaultHandler(func(p *parser.Part) error {
+			t, params, _ := p.ContentType()
+			// multipart/alternative, for example, can contain extra charset.
+			if params != nil && params["charset"] != "" {
+				return p.ConvertToUTF8()
+			}
+			logrus.WithField("type", t).Trace("Not converting part to utf-8")
+			return nil
+		}).
+		Walk()
 }
 
-// Some clients incorrectly format messages with embedded attachments to have a format like
-// I. text/plain II. attachment III. text/plain
-// which we need to convert to a single HTML part with an embedded attachment.
-func combineParts(m *pmapi.Message, parts []io.Reader, headers []textproto.MIMEHeader, convertPlainToHTML bool, atts *[]io.Reader) (isHTML bool, err error) { //nolint[funlen]
-	isHTML = true
-	foundText := false
+func collectAttachments(p *parser.Parser) ([]*pmapi.Attachment, []io.Reader, error) {
+	var (
+		atts []*pmapi.Attachment
+		data []io.Reader
+		err  error
+	)
 
-	for i := len(parts) - 1; i >= 0; i-- {
-		part := parts[i]
-		h := headers[i]
-
-		disp, dispParams, _ := pmmime.ParseMediaType(h.Get("Content-Disposition"))
-
-		d := pmmime.DecodeContentEncoding(part, h.Get("Content-Transfer-Encoding"))
-		if d == nil {
-			log.Warnf("Unsupported Content-Transfer-Encoding '%v'", h.Get("Content-Transfer-Encoding"))
-			d = part
-		}
-
-		contentType := h.Get("Content-Type")
-		if contentType == "" {
-			contentType = "text/plain"
-		}
-		mediaType, params, _ := pmmime.ParseMediaType(contentType)
-
-		if strings.HasPrefix(mediaType, "text/") && mediaType != "text/calendar" && disp != "attachment" {
-			// This is text.
-			if d == nil {
-				continue
-			}
-			var b []byte
-			if b, err = ioutil.ReadAll(d); err != nil {
-				continue
-			}
-			b, err = pmmime.DecodeCharset(b, contentType)
+	w := p.NewWalker().
+		RegisterContentDispositionHandler("attachment", func(p *parser.Part) error {
+			att, err := parseAttachment(p.Header)
 			if err != nil {
-				log.Warn("Decode charset error: ", err)
-				return false, err
-			}
-			contents := string(b)
-			if strings.Contains(mediaType, "text/plain") && len(contents) > 0 {
-				if !convertPlainToHTML {
-					isHTML = false
-				} else {
-					contents = plaintextToHTML(contents)
-				}
-			} else if strings.Contains(mediaType, "text/html") && len(contents) > 0 {
-				contents, err = stripHTML(contents)
-				if err != nil {
-					return isHTML, err
-				}
-			}
-			m.Body = contents + m.Body
-			foundText = true
-		} else {
-			// This is an attachment.
-			filename := dispParams["filename"]
-			if filename == "" {
-				// Using "name" in Content-Type is discouraged.
-				filename = params["name"]
-			}
-			if filename == "" && mediaType == "text/calendar" {
-				filename = "event.ics"
+				return err
 			}
 
-			att := parseAttachment(filename, mediaType, h)
+			atts = append(atts, att)
+			data = append(data, bytes.NewReader(p.Body))
 
-			b := &bytes.Buffer{}
-			if d == nil {
-				continue
-			}
-			if _, err = io.Copy(b, d); err != nil {
-				continue
-			}
-			if foundText && att.ContentID == "" && strings.Contains(mediaType, "image") {
-				// Treat this as an inline attachment even though it is not marked as one.
-				hasher := sha256.New()
-				_, _ = hasher.Write([]byte(att.Name + strconv.Itoa(b.Len())))
-				bytes := hasher.Sum(nil)
-				cid := hex.EncodeToString(bytes) + "@protonmail.com"
-
-				att.ContentID = cid
-				embeddedHTML := makeEmbeddedImageHTML(cid, att.Name)
-				m.Body = embeddedHTML + m.Body
+			return nil
+		}).
+		RegisterContentTypeHandler("text/calendar", func(p *parser.Part) error {
+			att, err := parseAttachment(p.Header)
+			if err != nil {
+				return err
 			}
 
-			m.Attachments = append(m.Attachments, att)
-			*atts = append(*atts, b)
-		}
-	}
-	if isHTML {
-		m.Body = addOuterHTMLTags(m.Body)
-	}
-	return isHTML, nil
-}
+			atts = append(atts, att)
+			data = append(data, bytes.NewReader(p.Body))
 
-func checkHeaders(headers []textproto.MIMEHeader) bool {
-	foundAttachment := false
+			return nil
+		}).
+		RegisterContentTypeHandler("text/.*", func(p *parser.Part) error {
+			return nil
+		}).
+		RegisterDefaultHandler(func(p *parser.Part) error {
+			if len(p.Children()) > 0 {
+				return nil
+			}
 
-	for i := 0; i < len(headers); i++ {
-		h := headers[i]
+			att, err := parseAttachment(p.Header)
+			if err != nil {
+				return err
+			}
 
-		mediaType, _, _ := pmmime.ParseMediaType(h.Get("Content-Type"))
+			atts = append(atts, att)
+			data = append(data, bytes.NewReader(p.Body))
 
-		if !strings.HasPrefix(mediaType, "text/") {
-			foundAttachment = true
-		} else if foundAttachment {
-			// This means that there is a text part after the first attachment,
-			// so we will have to convert the body from plain->HTML.
-			return true
-		}
-	}
-	return false
-}
+			return nil
+		})
 
-// ============================== 7bit Filter ==========================
-// For every MIME part in the tree that has "8bit" or "binary" content
-// transfer encoding: transcode it to "quoted-printable".
-
-type SevenBitFilter struct {
-	target pmmime.VisitAcceptor
-}
-
-func NewSevenBitFilter(targetAccepter pmmime.VisitAcceptor) *SevenBitFilter {
-	return &SevenBitFilter{
-		target: targetAccepter,
-	}
-}
-
-func decodePart(partReader io.Reader, header textproto.MIMEHeader) (decodedPart io.Reader) {
-	decodedPart = pmmime.DecodeContentEncoding(partReader, header.Get("Content-Transfer-Encoding"))
-	if decodedPart == nil {
-		log.Warnf("Unsupported Content-Transfer-Encoding '%v'", header.Get("Content-Transfer-Encoding"))
-		decodedPart = partReader
-	}
-	return
-}
-
-func (sd SevenBitFilter) Accept(partReader io.Reader, header textproto.MIMEHeader, hasPlainSibling bool, isFirst, isLast bool) error {
-	cte := strings.ToLower(header.Get("Content-Transfer-Encoding"))
-	if isFirst && pmmime.IsLeaf(header) && cte != "quoted-printable" && cte != "base64" && cte != "7bit" {
-		decodedPart := decodePart(partReader, header)
-
-		filteredHeader := textproto.MIMEHeader{}
-		for k, v := range header {
-			filteredHeader[k] = v
-		}
-		filteredHeader.Set("Content-Transfer-Encoding", "quoted-printable")
-
-		filteredBuffer := &bytes.Buffer{}
-		decodedSlice, _ := ioutil.ReadAll(decodedPart)
-		w := quotedprintable.NewWriter(filteredBuffer)
-		if _, err := w.Write(decodedSlice); err != nil {
-			log.Errorf("cannot write quotedprintable from %q: %v", cte, err)
-		}
-		if err := w.Close(); err != nil {
-			log.Errorf("cannot close quotedprintable from %q: %v", cte, err)
-		}
-
-		_ = sd.target.Accept(filteredBuffer, filteredHeader, hasPlainSibling, true, isLast)
-	} else {
-		_ = sd.target.Accept(partReader, header, hasPlainSibling, isFirst, isLast)
-	}
-	return nil
-}
-
-// =================== HTML Only convertor ==================================
-// In any part of MIME tree structure, replace standalone text/html with
-// multipart/alternative containing both text/html and text/plain.
-
-type HTMLOnlyConvertor struct {
-	target pmmime.VisitAcceptor
-}
-
-func NewHTMLOnlyConvertor(targetAccepter pmmime.VisitAcceptor) *HTMLOnlyConvertor {
-	return &HTMLOnlyConvertor{
-		target: targetAccepter,
-	}
-}
-
-func randomBoundary() string {
-	buf := make([]byte, 30)
-
-	// We specifically use `math/rand` here to allow the generator to be seeded for test purposes.
-	// The random numbers need not be cryptographically secure; we are simply generating random part boundaries.
-	if _, err := rand.Read(buf); err != nil { // nolint[gosec]
-		panic(err)
+	if err = w.Walk(); err != nil {
+		return nil, nil, err
 	}
 
-	return fmt.Sprintf("%x", buf)
+	return atts, data, nil
 }
 
-func (hoc HTMLOnlyConvertor) Accept(partReader io.Reader, header textproto.MIMEHeader, hasPlainSiblings bool, isFirst, isLast bool) error {
-	mediaType, _, err := pmmime.ParseMediaType(header.Get("Content-Type"))
-	if isFirst && err == nil && mediaType == "text/html" && !hasPlainSiblings {
-		multiPartHeaders := make(textproto.MIMEHeader)
-		for k, v := range header {
-			multiPartHeaders[k] = v
-		}
-		boundary := randomBoundary()
-		multiPartHeaders.Set("Content-Type", "multipart/alternative; boundary=\""+boundary+"\"")
-		childCte := header.Get("Content-Transfer-Encoding")
+// buildBodies collects all text/html and text/plain parts and returns two bodies,
+//  - a rich text body (in which html is allowed), and
+//  - a plaintext body (in which html is converted to plaintext).
+//
+// text/html parts are converted to plaintext in order to build the plaintext body,
+// unless there is already a plaintext part provided via multipart/alternative,
+// in which case the provided alternative is chosen.
+func buildBodies(p *parser.Parser) (richBody, plainBody string, err error) {
+	richParts, err := collectBodyParts(p, "text/html")
+	if err != nil {
+		return
+	}
 
-		_ = hoc.target.Accept(partReader, multiPartHeaders, false, true, false)
+	plainParts, err := collectBodyParts(p, "text/plain")
+	if err != nil {
+		return
+	}
 
-		partData, _ := ioutil.ReadAll(partReader)
+	richBuilder, plainBuilder := strings.Builder{}, strings.Builder{}
 
-		htmlChildHeaders := make(textproto.MIMEHeader)
-		htmlChildHeaders.Set("Content-Transfer-Encoding", childCte)
-		htmlChildHeaders.Set("Content-Type", "text/html")
-		htmlReader := bytes.NewReader(partData)
-		_ = hoc.target.Accept(htmlReader, htmlChildHeaders, false, true, false)
+	for _, richPart := range richParts {
+		_, _ = richBuilder.Write(richPart.Body)
+	}
 
-		_ = hoc.target.Accept(partReader, multiPartHeaders, hasPlainSiblings, false, false)
+	for _, plainPart := range plainParts {
+		_, _ = plainBuilder.Write(getPlainBody(plainPart))
+	}
 
-		plainChildHeaders := make(textproto.MIMEHeader)
-		plainChildHeaders.Set("Content-Transfer-Encoding", childCte)
-		plainChildHeaders.Set("Content-Type", "text/plain")
-		unHtmlized, err := html2text.FromReader(bytes.NewReader(partData))
+	return richBuilder.String(), plainBuilder.String(), nil
+}
+
+// collectBodyParts collects all body parts in the parse tree, preferring
+// parts of the given content type if alternatives exist.
+func collectBodyParts(p *parser.Parser, preferredContentType string) (parser.Parts, error) {
+	v := p.
+		NewVisitor(func(p *parser.Part, visit parser.Visit) (interface{}, error) {
+			childParts, err := collectChildParts(p, visit)
+			if err != nil {
+				return nil, err
+			}
+
+			return joinChildParts(childParts), nil
+		}).
+		RegisterRule("multipart/alternative", func(p *parser.Part, visit parser.Visit) (interface{}, error) {
+			childParts, err := collectChildParts(p, visit)
+			if err != nil {
+				return nil, err
+			}
+
+			return bestChoice(childParts, preferredContentType), nil
+		}).
+		RegisterRule("text/plain", func(p *parser.Part, visit parser.Visit) (interface{}, error) {
+			disp, _, err := p.Header.ContentDisposition()
+			if err != nil {
+				disp = ""
+			}
+
+			if disp == "attachment" {
+				return parser.Parts{}, nil
+			}
+
+			return parser.Parts{p}, nil
+		}).
+		RegisterRule("text/html", func(p *parser.Part, visit parser.Visit) (interface{}, error) {
+			disp, _, err := p.Header.ContentDisposition()
+			if err != nil {
+				disp = ""
+			}
+
+			if disp == "attachment" {
+				return parser.Parts{}, nil
+			}
+
+			return parser.Parts{p}, nil
+		})
+
+	res, err := v.Visit()
+	if err != nil {
+		return nil, err
+	}
+
+	return res.(parser.Parts), nil
+}
+
+func collectChildParts(p *parser.Part, visit parser.Visit) ([]parser.Parts, error) {
+	childParts := []parser.Parts{}
+
+	for _, child := range p.Children() {
+		res, err := visit(child)
 		if err != nil {
-			unHtmlized = string(partData)
+			return nil, err
 		}
-		plainReader := strings.NewReader(unHtmlized)
-		_ = hoc.target.Accept(plainReader, plainChildHeaders, false, true, true)
 
-		_ = hoc.target.Accept(partReader, multiPartHeaders, hasPlainSiblings, false, true)
-	} else {
-		_ = hoc.target.Accept(partReader, header, hasPlainSiblings, isFirst, isLast)
+		childParts = append(childParts, res.(parser.Parts))
 	}
-	return nil
+
+	return childParts, nil
 }
 
-// ======= Public Key Attacher ========
+func joinChildParts(childParts []parser.Parts) parser.Parts {
+	res := parser.Parts{}
 
-type PublicKeyAttacher struct {
-	target                pmmime.VisitAcceptor
-	attachedPublicKey     string
-	attachedPublicKeyName string
-	appendToMultipart     bool
-	depth                 int
+	for _, parts := range childParts {
+		res = append(res, parts...)
+	}
+
+	return res
 }
 
-func NewPublicKeyAttacher(targetAccepter pmmime.VisitAcceptor, attachedPublicKey, attachedPublicKeyName string) *PublicKeyAttacher {
-	return &PublicKeyAttacher{
-		target:                targetAccepter,
-		attachedPublicKey:     attachedPublicKey,
-		attachedPublicKeyName: attachedPublicKeyName,
-		appendToMultipart:     false,
-		depth:                 0,
-	}
-}
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
-func split(input string, sliceLength int) string {
-	processed := input
-	result := ""
-	for len(processed) > 0 {
-		cutPoint := min(sliceLength, len(processed))
-		part := processed[0:cutPoint]
-		result = result + part + "\n"
-		processed = processed[cutPoint:]
-	}
-	return result
-}
-
-func createKeyAttachment(publicKey, publicKeyName string) (headers textproto.MIMEHeader, contents io.Reader) {
-	attachmentHeaders := make(textproto.MIMEHeader)
-	attachmentHeaders.Set("Content-Type", "application/pgp-key; name=\""+publicKeyName+"\"")
-	attachmentHeaders.Set("Content-Transfer-Encoding", "base64")
-	attachmentHeaders.Set("Content-Disposition", "attachment; filename=\""+publicKeyName+".asc.pgp\"")
-
-	buffer := &bytes.Buffer{}
-	w := base64.NewEncoder(base64.StdEncoding, buffer)
-	_, _ = w.Write([]byte(publicKey))
-	_ = w.Close()
-
-	return attachmentHeaders, strings.NewReader(split(buffer.String(), 73))
-}
-
-func (pka *PublicKeyAttacher) Accept(partReader io.Reader, header textproto.MIMEHeader, hasPlainSiblings bool, isFirst, isLast bool) error {
-	if isFirst && !pmmime.IsLeaf(header) {
-		pka.depth++
-	}
-	if isLast && !pmmime.IsLeaf(header) {
-		defer func() {
-			pka.depth--
-		}()
-	}
-	isRoot := (header.Get("From") != "")
-
-	// NOTE: This should also work for unspecified Content-Type (in which case us-ascii text/plain is assumed)!
-	mediaType, _, err := pmmime.ParseMediaType(header.Get("Content-Type"))
-	if isRoot && isFirst && err == nil && pka.attachedPublicKey != "" { //nolint[gocritic]
-		if strings.HasPrefix(mediaType, "multipart/mixed") {
-			pka.appendToMultipart = true
-			_ = pka.target.Accept(partReader, header, hasPlainSiblings, isFirst, isLast)
-		} else {
-			// Create two siblings with attachment in the case toplevel is not multipart/mixed.
-			multiPartHeaders := make(textproto.MIMEHeader)
-			for k, v := range header {
-				multiPartHeaders[k] = v
-			}
-			boundary := randomBoundary()
-			multiPartHeaders.Set("Content-Type", "multipart/mixed; boundary=\""+boundary+"\"")
-			multiPartHeaders.Del("Content-Transfer-Encoding")
-
-			_ = pka.target.Accept(partReader, multiPartHeaders, false, true, false)
-
-			originalHeader := make(textproto.MIMEHeader)
-			originalHeader.Set("Content-Type", header.Get("Content-Type"))
-			if header.Get("Content-Transfer-Encoding") != "" {
-				originalHeader.Set("Content-Transfer-Encoding", header.Get("Content-Transfer-Encoding"))
-			}
-
-			_ = pka.target.Accept(partReader, originalHeader, false, true, false)
-			_ = pka.target.Accept(partReader, multiPartHeaders, hasPlainSiblings, false, false)
-
-			attachmentHeaders, attachmentReader := createKeyAttachment(pka.attachedPublicKey, pka.attachedPublicKeyName)
-
-			_ = pka.target.Accept(attachmentReader, attachmentHeaders, false, true, true)
-			_ = pka.target.Accept(partReader, multiPartHeaders, hasPlainSiblings, false, true)
+func bestChoice(childParts []parser.Parts, preferredContentType string) parser.Parts {
+	// If one of the parts has preferred content type, use that.
+	for i := len(childParts) - 1; i >= 0; i-- {
+		if allPartsHaveContentType(childParts[i], preferredContentType) {
+			return childParts[i]
 		}
-	} else if isLast && pka.depth == 1 && pka.attachedPublicKey != "" {
-		_ = pka.target.Accept(partReader, header, hasPlainSiblings, isFirst, false)
-		attachmentHeaders, attachmentReader := createKeyAttachment(pka.attachedPublicKey, pka.attachedPublicKeyName)
-		_ = pka.target.Accept(attachmentReader, attachmentHeaders, hasPlainSiblings, true, true)
-		_ = pka.target.Accept(partReader, header, hasPlainSiblings, isFirst, true)
-	} else {
-		_ = pka.target.Accept(partReader, header, hasPlainSiblings, isFirst, isLast)
 	}
-	return nil
+
+	// Otherwise, choose the last one.
+	return childParts[len(childParts)-1]
 }
 
-// ======= Parser ==========
-
-func Parse(r io.Reader, attachedPublicKey, attachedPublicKeyName string) (m *pmapi.Message, mimeBody string, plainContents string, atts []io.Reader, err error) {
-	secondReader := new(bytes.Buffer)
-	_, _ = secondReader.ReadFrom(r)
-
-	mimeBody = secondReader.String()
-
-	mm, err := mail.ReadMessage(secondReader)
-	if err != nil {
-		return
+func allPartsHaveContentType(parts parser.Parts, contentType string) bool {
+	if len(parts) == 0 {
+		return false
 	}
 
-	if m, err = parseHeader(mm.Header); err != nil {
-		return
+	for _, part := range parts {
+		t, _, err := part.ContentType()
+		if err != nil {
+			return false
+		}
+
+		if t != contentType {
+			return false
+		}
 	}
 
-	h := textproto.MIMEHeader(m.Header)
-	mmBodyData, err := ioutil.ReadAll(mm.Body)
-	if err != nil {
-		return
+	return true
+}
+
+func determineMIMEType(p *parser.Parser) (string, error) {
+	var isHTML bool
+
+	w := p.NewWalker().
+		RegisterContentTypeHandler("text/html", func(p *parser.Part) (err error) {
+			isHTML = true
+			return
+		})
+
+	if err := w.Walk(); err != nil {
+		return "", err
 	}
-
-	printAccepter := pmmime.NewMIMEPrinter()
-
-	publicKeyAttacher := NewPublicKeyAttacher(printAccepter, attachedPublicKey, attachedPublicKeyName)
-	sevenBitFilter := NewSevenBitFilter(publicKeyAttacher)
-
-	plainTextCollector := pmmime.NewPlainTextCollector(sevenBitFilter)
-	htmlOnlyConvertor := NewHTMLOnlyConvertor(plainTextCollector)
-
-	visitor := pmmime.NewMimeVisitor(htmlOnlyConvertor)
-	err = pmmime.VisitAll(bytes.NewReader(mmBodyData), h, visitor)
-	/*
-		err = visitor.VisitAll(h, bytes.NewReader(mmBodyData))
-	*/
-	if err != nil {
-		return
-	}
-
-	mimeBody = printAccepter.String()
-
-	plainContents = plainTextCollector.GetPlainText()
-
-	parts, headers, err := pmmime.GetAllChildParts(bytes.NewReader(mmBodyData), h)
-
-	if err != nil {
-		return
-	}
-
-	convertPlainToHTML := checkHeaders(headers)
-	isHTML, err := combineParts(m, parts, headers, convertPlainToHTML, &atts)
 
 	if isHTML {
-		m.MIMEType = "text/html"
-	} else {
-		m.MIMEType = "text/plain"
+		return "text/html", nil
 	}
 
-	return m, mimeBody, plainContents, atts, err
+	return "text/plain", nil
+}
+
+// getPlainBody returns the body of the given part, converting html to
+// plaintext where possible.
+func getPlainBody(part *parser.Part) []byte {
+	contentType, _, err := part.ContentType()
+	if err != nil {
+		return part.Body
+	}
+
+	switch contentType {
+	case "text/html":
+		text, err := html2text.FromReader(bytes.NewReader(part.Body))
+		if err != nil {
+			return part.Body
+		}
+
+		return []byte(text)
+
+	default:
+		return part.Body
+	}
+}
+
+func attachPublicKey(p *parser.Part, key, keyName string) {
+	h := message.Header{}
+
+	h.Set("Content-Type", fmt.Sprintf(`application/pgp-keys; name="%v.asc"; filename="%v.asc"`, keyName, keyName))
+	h.Set("Content-Disposition", fmt.Sprintf(`attachment; name="%v.asc"; filename="%v.asc"`, keyName, keyName))
+	h.Set("Content-Transfer-Encoding", "base64")
+
+	p.AddChild(&parser.Part{
+		Header: h,
+		Body:   []byte(key),
+	})
+}
+
+// NOTE: We should use our own ParseAddressList here.
+func parseMessageHeader(m *pmapi.Message, h message.Header) error { // nolint[funlen]
+	mimeHeader, err := toMailHeader(h)
+	if err != nil {
+		return err
+	}
+	m.Header = mimeHeader
+
+	if err := forEachDecodedHeaderField(h, func(key, val string) error {
+		switch strings.ToLower(key) {
+		case "subject":
+			m.Subject = val
+
+		case "from":
+			sender, err := parseAddressList(val)
+			if err != nil {
+				return err
+			}
+			if len(sender) > 0 {
+				m.Sender = sender[0]
+			}
+
+		case "to":
+			toList, err := parseAddressList(val)
+			if err != nil {
+				return err
+			}
+			m.ToList = toList
+
+		case "reply-to":
+			replyTos, err := parseAddressList(val)
+			if err != nil {
+				return err
+			}
+			m.ReplyTos = replyTos
+
+		case "cc":
+			ccList, err := parseAddressList(val)
+			if err != nil {
+				return err
+			}
+			m.CCList = ccList
+
+		case "bcc":
+			bccList, err := parseAddressList(val)
+			if err != nil {
+				return err
+			}
+			m.BCCList = bccList
+
+		case "date":
+			date, err := mail.ParseDate(val)
+			if err != nil {
+				return err
+			}
+			m.Time = date.Unix()
+		}
+
+		return nil
+	}); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func parseAttachment(h message.Header) (*pmapi.Attachment, error) {
+	att := &pmapi.Attachment{}
+
+	mimeHeader, err := toMIMEHeader(h)
+	if err != nil {
+		return nil, err
+	}
+	att.Header = mimeHeader
+
+	mimeType, _, err := h.ContentType()
+	if err != nil {
+		return nil, err
+	}
+	att.MIMEType = mimeType
+
+	_, dispParams, dispErr := h.ContentDisposition()
+	if dispErr != nil {
+		ext, err := mime.ExtensionsByType(att.MIMEType)
+		if err != nil {
+			return nil, err
+		}
+
+		if len(ext) > 0 {
+			att.Name = "attachment" + ext[0]
+		}
+	} else {
+		att.Name = dispParams["filename"]
+
+		if att.Name == "" {
+			att.Name = "attachment.bin"
+		}
+	}
+
+	att.ContentID = strings.Trim(h.Get("Content-Id"), " <>")
+
+	return att, nil
+}
+
+func forEachDecodedHeaderField(h message.Header, fn func(string, string) error) error {
+	fields := h.Fields()
+
+	for fields.Next() {
+		text, err := fields.Text()
+		if err != nil {
+			if !message.IsUnknownCharset(err) {
+				return err
+			}
+
+			if text, err = pmmime.DecodeHeader(fields.Value()); err != nil {
+				return err
+			}
+		}
+
+		if err := fn(fields.Key(), text); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func toMailHeader(h message.Header) (mail.Header, error) {
+	mimeHeader := make(mail.Header)
+
+	if err := forEachDecodedHeaderField(h, func(key, val string) error {
+		mimeHeader[key] = []string{val}
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+
+	return mimeHeader, nil
+}
+
+func toMIMEHeader(h message.Header) (textproto.MIMEHeader, error) {
+	mimeHeader := make(textproto.MIMEHeader)
+
+	if err := forEachDecodedHeaderField(h, func(key, val string) error {
+		mimeHeader[key] = []string{val}
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+
+	return mimeHeader, nil
 }
