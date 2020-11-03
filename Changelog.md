@@ -4,6 +4,31 @@ Changelog [format](http://keepachangelog.com/en/1.0.0/)
 
 ## Unreleased
 
+## [IE 1.2.0] Elbe
+
+### Added
+* GODT-763 Detect Gmail labels from All Mail mbox export (using X-Gmail-Label header).
+* GODT-834 Info about tags in BUILDS.md and link to Import-Export page in README.md.
+* GODT-777 Support Apple Mail MBOX export format.
+
+### Fixed
+* GODT-677 Windows IE: global import settings not fit in window.
+* GODT-794 Congo fails to update to Danube
+* GODT-749 Don't force PGP/Inline when sending plaintext messages.
+* GODT-764 Fix deadlock in integration tests for Import-Export.
+* GODT-662 Do not resume paused transfer progress after dismissing cancel popup.
+* GODT-772 Sanitize mailbox names for exporting to follow OS restrictions.
+* GODT-771 Show fatal errors after export is terminated.
+* GODT-779 Do not propagate updates when progress is stopped.
+* GODT-779 Unpause progress during fatal error to properly stop progress.
+* GODT-779 Stop ongoing transfer calls sooner (re-check after import request is generated).
+* Fix measurement of uploading attachments during transfer.
+* GODT-827 Do not spam sentry with bad ID by integration test.
+* GODT-700 Fix UTF-7 incompatibility.
+* GODT-837 Fix flaky TestFailUnpauseAndStops.
+
+## [Bridge 1.4.5] Forth
+
 ### Fixed
 * GODT-829 Remove `NoInferior` to display sub-folders in apple mail.
 
@@ -35,10 +60,16 @@ Changelog [format](http://keepachangelog.com/en/1.0.0/)
 
 ### Fixed
 * GODT-770 Better handling of extraneous end-of-mail indicator.
+* GODT-776 Fix crash when IMAP client connects while account is logging in.
 
 ### Changed
 * Bump crypto version to v0.0.0-20200818122824-ed5d25e28db8
+* GODT-785 Clear separation of different message IDs in integration tests.
+### Changed
+* GODT-741 Import-Export shows "Unable to parse time" notice instead of zero time in error report window.
 
+* Bump crypto version to v0.0.0-20200818122824-ed5d25e28db8.
+* GODT-374 Allow to send calendar update multiple times.
 
 ## [IE 1.1.1] Danube (beta 2020-09-xx) [Bridge 1.4.1] Forth (beta 2020-09-xx)
 
@@ -53,6 +84,8 @@ Changelog [format](http://keepachangelog.com/en/1.0.0/)
 ### Fixed
 * GODT-703 Import-Export showed always at least one total message.
 * GODT-738 Fix for mbox files with long lines.
+### Fixed
+* GODT-732 Do not mix font awesome icon with regular text to avoid issues on Fedora.
 
 
 ## [Bridge 1.4.0] Forth

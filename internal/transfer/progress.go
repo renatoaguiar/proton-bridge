@@ -93,7 +93,7 @@ func (p *Progress) fatal(err error) {
 	defer p.lock.Unlock()
 
 	log.WithError(err).Error("Progress finished")
-	p.isStopped = true
+	p.setStop()
 	p.fatalError = err
 	p.cleanUpdateCh()
 }
@@ -126,16 +126,17 @@ func (p *Progress) updateCount(mailbox string, count uint) {
 }
 
 // addMessage should be called as soon as there is ID of the message.
-func (p *Progress) addMessage(messageID string, rule *Rule) {
+func (p *Progress) addMessage(messageID string, sourceNames, targetNames []string) {
 	p.lock.Lock()
 	defer p.lock.Unlock()
 	defer p.update()
 
 	p.log.WithField("id", messageID).Trace("Message added")
 	p.messageStatuses[messageID] = &MessageStatus{
-		eventTime: time.Now(),
-		rule:      rule,
-		SourceID:  messageID,
+		eventTime:   time.Now(),
+		sourceNames: sourceNames,
+		SourceID:    messageID,
+		targetNames: targetNames,
 	}
 }
 
@@ -282,6 +283,15 @@ func (p *Progress) Stop() {
 	defer p.update()
 
 	p.log.Info("Progress stopped")
+	p.setStop()
+
+	// Once progress is stopped, some calls might be in progress. Results from
+	// those calls are irrelevant so we can close update channel sooner to not
+	// propagate any progress to user interface anymore.
+	p.cleanUpdateCh()
+}
+
+func (p *Progress) setStop() {
 	p.isStopped = true
 	p.pauseReason = "" // Clear pause to run paused code and stop it.
 }

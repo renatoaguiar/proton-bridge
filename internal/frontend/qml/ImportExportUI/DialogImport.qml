@@ -279,9 +279,8 @@ Dialog {
             titleTo        : root.address
         }
 
-        Rectangle {
+        Column {
             id: masterImportSettings
-            height: 150 // fixme
             anchors {
                 right  : parent.right
                 left   : parent.left
@@ -291,45 +290,47 @@ Dialog {
                 rightMargin  : Style.main.leftMargin
                 bottomMargin : Style.main.bottomMargin
             }
-            color: Style.dialog.background
 
-            Text {
-                id: labelMasterImportSettings
-                text: qsTr("Master import settings:")
+            spacing: Style.main.bottomMargin
 
-                font {
-                    bold: true
-                    family: Style.fontawesome.name
-                    pointSize: Style.main.fontSize * Style.pt
-                }
-                color: Style.main.text
+            Row {
+                spacing: masterImportSettings.width - labelMasterImportSettings.width - resetSourceButton.width
 
-                InfoToolTip {
-                    info: qsTr(
-                        "If master import date range is selected only emails within this range will be imported, unless it is specified differently in folder date range.",
-                        "Text in master import settings tooltip."
-                    )
-                    anchors {
-                        left: parent.right
-                        bottom: parent.bottom
-                        leftMargin : Style.dialog.leftMargin
+                Text {
+                    id: labelMasterImportSettings
+                    text: qsTr("Master import settings:")
+
+                    font {
+                        bold: true
+                        family: Style.fontawesome.name
+                        pointSize: Style.main.fontSize * Style.pt
+                    }
+                    color: Style.main.text
+
+                    InfoToolTip {
+                        anchors {
+                            left: parent.right
+                            bottom: parent.bottom
+                            leftMargin : Style.dialog.leftMargin
+                        }
+                        info: qsTr(
+                            "If master import date range is selected only emails within this range will be imported, unless it is specified differently in folder date range.",
+                            "Text in master import settings tooltip."
+                        )
                     }
                 }
-            }
 
-            // Reset all to default
-            ClickIconText {
-                anchors {
-                    right: parent.right
-                    bottom: labelMasterImportSettings.bottom
-                }
-                text:qsTr("Reset all settings to default")
-                iconText: Style.fa.refresh
-                textColor: Style.main.textBlue
-                onClicked: {
-                    go.resetSource()
-                    root.decrementCurrentIndex()
-                    timer.start()
+                // Reset all to default
+                ClickIconText {
+                    id: resetSourceButton
+                    text:qsTr("Reset all settings to default")
+                    iconText: Style.fa.refresh
+                    textColor: Style.main.textBlue
+                    onClicked: {
+                        go.resetSource()
+                        root.decrementCurrentIndex()
+                        timer.start()
+                    }
                 }
             }
 
@@ -348,49 +349,40 @@ Dialog {
 
             InlineDateRange {
                 id: globalDateRange
-                anchors {
-                    left      : parent.left
-                    top       : line.bottom
-                    topMargin : Style.dialog.topMargin
-                }
             }
 
             // Add global label (inline)
             InlineLabelSelect {
                 id: globalLabels
-                anchors {
-                    left      : parent.left
-                    top       : globalDateRange.bottom
-                    topMargin : Style.dialog.topMargin
-                }
-                //labelWidth : globalDateRange.labelWidth
+            }
+        }
+
+        // Buttons
+        Row {
+            spacing: Style.dialog.spacing
+            anchors {
+                right: parent.right
+                bottom: parent.bottom
+                rightMargin: Style.main.leftMargin
+                bottomMargin: Style.main.bottomMargin
             }
 
-            // Buttons
-            Row {
-                spacing: Style.dialog.spacing
-                anchors{
-                    bottom       : parent.bottom
-                    right        : parent.right
-                }
+            ButtonRounded {
+                id: buttonCancelThree
+                fa_icon    : Style.fa.times
+                text       : qsTr("Cancel", "todo")
+                color_main : Style.dialog.textBlue
+                onClicked  : root.cancel()
+            }
 
-                ButtonRounded {
-                    id: buttonCancelThree
-                    fa_icon    : Style.fa.times
-                    text       : qsTr("Cancel", "todo")
-                    color_main : Style.dialog.textBlue
-                    onClicked  : root.cancel()
-                }
-
-                ButtonRounded {
-                    id: buttonNextThree
-                    fa_icon     : Style.fa.check
-                    text        : qsTr("Import", "todo")
-                    color_main  : Style.dialog.background
-                    color_minor : Style.dialog.textBlue
-                    isOpaque    : true
-                    onClicked   : root.okay()
-                }
+            ButtonRounded {
+                id: buttonNextThree
+                fa_icon     : Style.fa.check
+                text        : qsTr("Import", "todo")
+                color_main  : Style.dialog.background
+                color_minor : Style.dialog.textBlue
+                isOpaque    : true
+                onClicked   : root.okay()
             }
         }
     }
@@ -483,18 +475,30 @@ Dialog {
                 }
             }
 
-            Text {
+            Row {
                 property int fails: go.progressFails
                 visible: fails > 0
-                color : Style.main.textRed
-                font.family: Style.fontawesome.name
-                font.pointSize: Style.main.fontSize * Style.pt
                 anchors.horizontalCenter: parent.horizontalCenter
-                text: Style.fa.exclamation_circle + " " + (
-                    fails == 1 ?
-                    qsTr("%1 message failed to be imported").arg(fails) :
-                    qsTr("%1 messages failed to be imported").arg(fails)
-                )
+
+                Text {
+                    color: Style.main.textRed
+                    font {
+                        pointSize : Style.dialog.fontSize * Style.pt
+                        family    : Style.fontawesome.name
+                    }
+                    text: Style.fa.exclamation_circle
+                }
+
+                Text {
+                    property int fails: go.progressFails
+                    color: Style.main.textRed
+                    font.pointSize: Style.main.fontSize * Style.pt
+                    text: " " + (
+                        fails == 1 ?
+                        qsTr("%1 message failed to be imported").arg(fails) :
+                        qsTr("%1 messages failed to be imported").arg(fails)
+                    )
+                }
             }
 
             Row { // buttons
@@ -575,12 +579,23 @@ Dialog {
             anchors.centerIn : finalReport
             spacing          : Style.dialog.heightSeparator
 
-            Text {
-                text: go.progressDescription!="" ? qsTr("Import failed: %1").arg(go.progressDescription) : Style.fa.check_circle + " " + qsTr("Import completed successfully")
+            Row {
                 anchors.horizontalCenter: parent.horizontalCenter
-                color: go.progressDescription!="" ? Style.main.textRed : Style.main.textGreen
-                font.bold : true
-                font.family: Style.fontawesome.name
+
+                Text {
+                    font {
+                        pointSize: Style.dialog.fontSize * Style.pt
+                        family: Style.fontawesome.name
+                    }
+                    color: Style.main.textGreen
+                    text: go.progressDescription!="" ? "" : Style.fa.check_circle
+                }
+
+                Text {
+                    text: go.progressDescription!="" ? qsTr("Import failed: %1").arg(go.progressDescription) : " " + qsTr("Import completed successfully")
+                    color: go.progressDescription!="" ? Style.main.textRed : Style.main.textGreen
+                    font.bold : true
+                }
             }
 
             Text {
@@ -773,11 +788,6 @@ Dialog {
             errorPopup.hide()
         }
         onClickedNo  : {
-            if (errorPopup.msgID == "ask_send_report") {
-                errorPopup.hide()
-                return
-            }
-            go.resumeProcess()
             errorPopup.hide()
         }
 

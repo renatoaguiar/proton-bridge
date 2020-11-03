@@ -72,7 +72,8 @@ func (p *PMAPIProvider) tryReconnect() error {
 
 func (p *PMAPIProvider) listMessages(filter *pmapi.MessagesFilter) (messages []*pmapi.Message, count int, err error) {
 	err = p.ensureConnection(func() error {
-		key := fmt.Sprintf("%s_%d", filter.LabelID, filter.Page)
+		// Sort is used in the key so the filter is different for estimating and real fetching.
+		key := fmt.Sprintf("%s_%s_%d", filter.LabelID, filter.Sort, filter.Page)
 		p.timeIt.start("listing", key)
 		defer p.timeIt.stop("listing", key)
 
@@ -117,8 +118,10 @@ func (p *PMAPIProvider) createDraft(msgSourceID string, message *pmapi.Message, 
 
 func (p *PMAPIProvider) createAttachment(msgSourceID string, att *pmapi.Attachment, r io.Reader, sig io.Reader) (created *pmapi.Attachment, err error) {
 	err = p.ensureConnection(func() error {
-		p.timeIt.start("upload", msgSourceID)
-		defer p.timeIt.stop("upload", msgSourceID)
+		// Use some attributes from attachment to have unique key for each call.
+		key := fmt.Sprintf("%s_%s_%d", msgSourceID, att.Name, att.Size)
+		p.timeIt.start("upload", key)
+		defer p.timeIt.stop("upload", key)
 
 		created, err = p.client().CreateAttachment(att, r, sig)
 		return err

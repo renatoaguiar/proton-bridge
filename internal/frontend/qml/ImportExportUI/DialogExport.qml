@@ -217,7 +217,10 @@ Dialog {
                 Text {
                     anchors.centerIn: parent
                     text: {
-                        if (progressbarExport.isFinished) return qsTr("Export finished","todo")
+                        if (progressbarExport.isFinished) {
+                            if (go.progressDescription=="") return qsTr("Export finished","todo")
+                            else return qsTr("Export failed: %1").arg(go.progressDescription)
+                        }
                         if (
                             go.progressDescription == gui.enums.progressInit || 
                             (go.progress==0 && go.description=="")
@@ -450,7 +453,6 @@ Dialog {
             errorPopup.hide()
         }
         onClickedNo  : {
-            go.resumeProcess()
             errorPopup.hide()
         }
     }

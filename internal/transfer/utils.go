@@ -24,6 +24,7 @@ import (
 	"net/mail"
 	"net/textproto"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 
@@ -81,7 +82,7 @@ func getFolderNamesWithFileSuffix(root, fileSuffix string) ([]string, error) {
 // getFilePathsWithSuffix collects all file names with `suffix` under `root`.
 // File names will be with relative path based to `root`.
 func getFilePathsWithSuffix(root, suffix string) ([]string, error) {
-	fileNames, err := getFilePathsWithSuffixInner("", root, suffix)
+	fileNames, err := getFilePathsWithSuffixInner("", root, suffix, false)
 	if err != nil {
 		return nil, err
 	}
@@ -89,7 +90,18 @@ func getFilePathsWithSuffix(root, suffix string) ([]string, error) {
 	return fileNames, err
 }
 
-func getFilePathsWithSuffixInner(prefix, root, suffix string) ([]string, error) {
+// getAllPathsWithSuffix is the same as getFilePathsWithSuffix but includes
+// also directories.
+func getAllPathsWithSuffix(root, suffix string) ([]string, error) {
+	fileNames, err := getFilePathsWithSuffixInner("", root, suffix, true)
+	if err != nil {
+		return nil, err
+	}
+	sort.Strings(fileNames)
+	return fileNames, err
+}
+
+func getFilePathsWithSuffixInner(prefix, root, suffix string, includeDir bool) ([]string, error) {
 	fileNames := []string{}
 
 	files, err := ioutil.ReadDir(root)
@@ -103,10 +115,14 @@ func getFilePathsWithSuffixInner(prefix, root, suffix string) ([]string, error) 
 				fileNames = append(fileNames, filepath.Join(prefix, file.Name()))
 			}
 		} else {
+			if includeDir && strings.HasSuffix(file.Name(), suffix) {
+				fileNames = append(fileNames, filepath.Join(prefix, file.Name()))
+			}
 			subfolderFileNames, err := getFilePathsWithSuffixInner(
 				filepath.Join(prefix, file.Name()),
 				filepath.Join(root, file.Name()),
 				suffix,
+				includeDir,
 			)
 			if err != nil {
 				return nil, err
@@ -138,4 +154,25 @@ func getMessageHeader(body []byte) (mail.Header, error) {
 		return nil, errors.Wrap(err, "failed to read headers")
 	}
 	return mail.Header(header), nil
+}
+
+// sanitizeFileName replaces problematic special characters with underscore.
+func sanitizeFileName(fileName string) string {
+	if len(fileName) == 0 {
+		return fileName
+	}
+	if runtime.GOOS != "windows" && (fileName[0] == '-' || fileName[0] == '.') { //nolint[goconst]
+		fileName = "_" + fileName[1:]
+	}
+	return strings.Map(func(r rune) rune {
+		switch r {
+		case '\\', '/', ':', '*', '?', '"', '<', '>', '|':
+			return '_'
+		case '[', ']', '(', ')', '{', '}', '^', '#', '%', '&', '!', '@', '+', '=', '\'', '~':
+			if runtime.GOOS != "windows" {
+				return '_'
+			}
+		}
+		return r
+	}, fileName)
 }
