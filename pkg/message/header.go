@@ -19,9 +19,7 @@ package message
 
 import (
 	"mime"
-	"net/mail"
 	"net/textproto"
-	"regexp"
 	"strings"
 	"time"
 
@@ -86,10 +84,6 @@ func GetHeader(msg *pmapi.Message) textproto.MIMEHeader { //nolint[funlen]
 	}
 	if msg.ConversationID != "" {
 		h.Set("X-Pm-ConversationID-Id", msg.ConversationID)
-		if references := h.Get("References"); !strings.Contains(references, msg.ConversationID) {
-			references += " <" + msg.ConversationID + "@" + pmapi.ConversationIDDomain + ">"
-			h.Set("References", references)
-		}
 	}
 
 	return h
@@ -140,47 +134,4 @@ func GetAttachmentHeader(att *pmapi.Attachment) textproto.MIMEHeader {
 	}
 
 	return h
-}
-
-var reEmailComment = regexp.MustCompile("[(][^)]*[)]") // nolint[gochecknoglobals]
-
-// parseAddressComment removes the comments completely even though they should be allowed
-// http://tools.wordtothewise.com/rfc/822
-// NOTE: This should be supported in go>1.10 but it seems it's not ¯\_(ツ)_/¯
-func parseAddressComment(raw string) string {
-	return reEmailComment.ReplaceAllString(raw, "")
-}
-
-func parseAddressList(val string) (addrs []*mail.Address, err error) {
-	if val == "" || val == "<>" {
-		return
-	}
-
-	addrs, err = mail.ParseAddressList(parseAddressComment(val))
-	if err == nil {
-		if addrs == nil {
-			addrs = []*mail.Address{}
-		}
-		return
-	}
-
-	// Probably missing encoding error -- try to at least parse addresses in brackets.
-	first := strings.Index(val, "<")
-	last := strings.LastIndex(val, ">")
-	if first < 0 || last < 0 || first >= last {
-		return
-	}
-	var addrList []string
-	open := first
-	for open < last && 0 <= open {
-		val = val[open:]
-		close := strings.Index(val, ">")
-		addrList = append(addrList, val[:close+1])
-		val = val[close:]
-		open = strings.Index(val, "<")
-		last = strings.LastIndex(val, ">")
-	}
-	val = strings.Join(addrList, ", ")
-
-	return mail.ParseAddressList(val)
 }

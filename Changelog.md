@@ -4,6 +4,14 @@ Changelog [format](http://keepachangelog.com/en/1.0.0/)
 
 ## Unreleased
 
+### Changed
+* Updated go-mbox dependency back to upstream.
+
+### Fixed
+* GODT-847 Waiting for unilateral update during deleting the message.
+* GODT-849 Show in error counts in the end also lost messages.
+* GODT-835 Do not include conversation ID in references to show properly conversation threads in clients.
+
 ## [IE 1.2.0] Elbe
 
 ### Added
@@ -26,6 +34,11 @@ Changelog [format](http://keepachangelog.com/en/1.0.0/)
 * GODT-827 Do not spam sentry with bad ID by integration test.
 * GODT-700 Fix UTF-7 incompatibility.
 * GODT-837 Fix flaky TestFailUnpauseAndStops.
+* GODT-782 Don't use TLS pinning when checking connectivity status.
+
+### Changed
+* TLS pins conform to official list.
+
 
 ## [Bridge 1.4.5] Forth
 

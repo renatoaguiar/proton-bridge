@@ -24,6 +24,7 @@ require (
 	github.com/abiosoft/ishell v2.0.0+incompatible
 	github.com/abiosoft/readline v0.0.0-20180607040430-155bce2042db // indirect
 	github.com/allan-simon/go-singleinstance v0.0.0-20160830203053-79edcfdc2dfc
+	github.com/antlr/antlr4 v0.0.0-20201020194047-0a7eaede42b0
 	github.com/certifi/gocertifi v0.0.0-20200211180108-c7c1fbc02894 // indirect
 	github.com/chzyer/logex v1.1.10 // indirect
 	github.com/chzyer/test v0.0.0-20180213035817-a1ea475d72b1 // indirect
@@ -35,7 +36,7 @@ require (
 	github.com/emersion/go-imap-quota v0.0.0-20200423100218-dcfd1b7d2b41
 	github.com/emersion/go-imap-specialuse v0.0.0-20200722111535-598ff00e4075
 	github.com/emersion/go-imap-unselect v0.0.0-20171113212723-b985794e5f26
-	github.com/emersion/go-mbox v1.0.0
+	github.com/emersion/go-mbox v1.0.2
 	github.com/emersion/go-message v0.12.1-0.20200903165315-e1abe21f389a
 	github.com/emersion/go-sasl v0.0.0-20200509203442-7bfe0ed36a21
 	github.com/emersion/go-textwrapper v0.0.0-20160606182133-d0e65e56babe
@@ -75,7 +76,6 @@ require (
 replace (
 	github.com/docker/docker-credential-helpers => github.com/renatoaguiar/docker-credential-helpers v1.1.1
 	github.com/emersion/go-imap => github.com/ProtonMail/go-imap v0.0.0-20201016095853-a7520cc904d3
-	github.com/emersion/go-mbox => github.com/ProtonMail/mbox v0.0.0-20200918064939-909a18c9af45
 	github.com/emersion/go-smtp => github.com/ProtonMail/go-smtp v0.0.0-20181206232543-8261df20d309
 	github.com/jameskeane/bcrypt => github.com/ProtonMail/bcrypt v0.0.0-20170924085257-7509ea014998
 	golang.org/x/crypto => github.com/ProtonMail/crypto v0.0.0-20200818122824-ed5d25e28db8

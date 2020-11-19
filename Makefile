@@ -10,7 +10,7 @@ TARGET_OS?=${GOOS}
 .PHONY: build build-ie build-nogui build-ie-nogui check-has-go
 
 # Keep version hardcoded so app build works also without Git repository.
-BRIDGE_APP_VERSION?=1.4.5-git
+BRIDGE_APP_VERSION?=1.5.0-git
 IE_APP_VERSION?=1.2.0-git
 APP_VERSION:=${BRIDGE_APP_VERSION}
 SRC_ICO:=logo.ico
@@ -56,7 +56,6 @@ TGZ_TARGET:=bridge_${TARGET_OS}_${REVISION}.tgz
 ifeq "${TARGET_CMD}" "Import-Export"
     TGZ_TARGET:=ie_${TARGET_OS}_${REVISION}.tgz
 endif
-
 
 build: ${TGZ_TARGET}
 build-ie:
@@ -265,7 +264,6 @@ run-ie-qt:
 run-ie-nogui:
 	TARGET_CMD=Import-Export $(MAKE) run-nogui
 
-
 clean-frontend-qt:
 	$(MAKE) -C internal/frontend/qt -f Makefile.local clean
 clean-frontend-qt-ie:
@@ -282,3 +280,8 @@ clean: clean-vendor
 	rm -rf cmd/Import-Export/deploy
 	rm -f build last.log mem.pprof main.go
 	rm -rf logo.ico icon.rc icon_windows.syso internal/frontend/qt/icon_windows.syso
+
+.PHONY: generate
+generate:
+	go generate ./...
+	$(MAKE) add-license
