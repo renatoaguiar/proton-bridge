@@ -15,38 +15,13 @@
 // You should have received a copy of the GNU General Public License
 // along with ProtonMail Bridge.  If not, see <https://www.gnu.org/licenses/>.
 
-package rfc5322
+package message
 
 import (
-	"net/mail"
-
-	"github.com/ProtonMail/proton-bridge/pkg/message/rfc5322/parser"
-	"github.com/sirupsen/logrus"
+	"github.com/ProtonMail/go-rfc5322"
+	pmmime "github.com/ProtonMail/proton-bridge/pkg/mime"
 )
 
-type group struct {
-	addresses []*mail.Address
-}
-
-func (g *group) withGroupList(groupList *groupList) {
-	g.addresses = append(g.addresses, groupList.addresses...)
-}
-
-func (w *walker) EnterGroup(ctx *parser.GroupContext) {
-	logrus.WithField("text", ctx.GetText()).Trace("Entering group")
-	w.enter(&group{})
-}
-
-func (w *walker) ExitGroup(ctx *parser.GroupContext) {
-	logrus.WithField("text", ctx.GetText()).Trace("Exiting group")
-
-	type withGroup interface {
-		withGroup(*group)
-	}
-
-	res := w.exit().(*group)
-
-	if parent, ok := w.parent().(withGroup); ok {
-		parent.withGroup(res)
-	}
+func init() { // nolint[noinit]
+	rfc5322.CharsetReader = pmmime.CharsetReader
 }

@@ -5,9 +5,10 @@
 package mocks
 
 import (
+	reflect "reflect"
+
 	pmapi "github.com/ProtonMail/proton-bridge/pkg/pmapi"
 	gomock "github.com/golang/mock/gomock"
-	reflect "reflect"
 )
 
 // MockPanicHandler is a mock of PanicHandler interface
@@ -103,6 +104,18 @@ func NewMockBridgeUser(ctrl *gomock.Controller) *MockBridgeUser {
 // EXPECT returns an object that allows the caller to indicate expected use
 func (m *MockBridgeUser) EXPECT() *MockBridgeUserMockRecorder {
 	return m.recorder
+}
+
+// CloseAllConnections mocks base method
+func (m *MockBridgeUser) CloseAllConnections() {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "CloseAllConnections")
+}
+
+// CloseAllConnections indicates an expected call of CloseAllConnections
+func (mr *MockBridgeUserMockRecorder) CloseAllConnections() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CloseAllConnections", reflect.TypeOf((*MockBridgeUser)(nil).CloseAllConnections))
 }
 
 // CloseConnection mocks base method

@@ -22,8 +22,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ProtonMail/go-rfc5322"
 	"github.com/ProtonMail/proton-bridge/internal/store"
-	"github.com/ProtonMail/proton-bridge/pkg/message/rfc5322"
 	"github.com/ProtonMail/proton-bridge/pkg/pmapi"
 	"github.com/ProtonMail/proton-bridge/test/accounts"
 	"github.com/cucumber/godog"
@@ -209,6 +209,10 @@ func messagesContainsMessageRow(account *accounts.TestAccount, allMessages []int
 					return false, fmt.Errorf("unknown BDD message ID: %s", cell.Value)
 				}
 				if message.ID != id {
+					matches = false
+				}
+			case "externalid":
+				if message.ExternalID != cell.Value {
 					matches = false
 				}
 			case "from": //nolint[goconst]

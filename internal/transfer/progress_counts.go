@@ -15,35 +15,21 @@
 // You should have received a copy of the GNU General Public License
 // along with ProtonMail Bridge.  If not, see <https://www.gnu.org/licenses/>.
 
-package rfc5322
+package transfer
 
-import (
-	"github.com/ProtonMail/proton-bridge/pkg/message/rfc5322/parser"
-	"github.com/sirupsen/logrus"
-)
-
-type quotedChar struct {
-	value string
+// ProgressCounts holds counts counted by Progress.
+type ProgressCounts struct {
+	Failed,
+	Skipped,
+	Imported,
+	Exported,
+	Added,
+	Total uint
 }
 
-func (w *walker) EnterQuotedChar(ctx *parser.QuotedCharContext) {
-	logrus.WithField("text", ctx.GetText()).Trace("Entering quotedChar")
-
-	w.enter(&quotedChar{
-		value: ctx.GetText(),
-	})
-}
-
-func (w *walker) ExitQuotedChar(ctx *parser.QuotedCharContext) {
-	logrus.WithField("text", ctx.GetText()).Trace("Exiting quotedChar")
-
-	type withQuotedChar interface {
-		withQuotedChar(*quotedChar)
-	}
-
-	res := w.exit().(*quotedChar)
-
-	if parent, ok := w.parent().(withQuotedChar); ok {
-		parent.withQuotedChar(res)
-	}
+// Progress returns ratio between processed messages (fully imported, skipped
+// and failed ones) and total number of messages as percentage (0 - 1).
+func (c *ProgressCounts) Progress() float32 {
+	progressed := c.Imported + c.Skipped + c.Failed
+	return float32(progressed) / float32(c.Total)
 }

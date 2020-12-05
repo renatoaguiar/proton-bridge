@@ -15,36 +15,29 @@
 // You should have received a copy of the GNU General Public License
 // along with ProtonMail Bridge.  If not, see <https://www.gnu.org/licenses/>.
 
-package rfc5322
+package pmapi
 
-import (
-	"github.com/ProtonMail/proton-bridge/pkg/message/rfc5322/parser"
-	"github.com/sirupsen/logrus"
-)
+import "unicode/utf8"
 
-type displayName struct {
-	words []string
-}
-
-func (n *displayName) withWord(word *word) {
-	n.words = append(n.words, word.value)
-}
-
-func (w *walker) EnterDisplayName(ctx *parser.DisplayNameContext) {
-	logrus.WithField("text", ctx.GetText()).Trace("Entering displayName")
-	w.enter(&displayName{})
-}
-
-func (w *walker) ExitDisplayName(ctx *parser.DisplayNameContext) {
-	logrus.WithField("text", ctx.GetText()).Trace("Exiting displayName")
-
-	type withDisplayName interface {
-		withDisplayName(*displayName)
+func printBytes(body []byte) string {
+	if utf8.Valid(body) {
+		return string(body)
+	}
+	enc := []rune{}
+	for _, b := range body {
+		switch {
+		case b == 9:
+			enc = append(enc, rune('⟼'))
+		case b == 13:
+			enc = append(enc, rune('↵'))
+		case b < 32, b == 127:
+			enc = append(enc, '◡')
+		case b > 31 && b < 127, b == 10:
+			enc = append(enc, rune(b))
+		default:
+			enc = append(enc, 9728+rune(b))
+		}
 	}
 
-	res := w.exit().(*displayName)
-
-	if parent, ok := w.parent().(withDisplayName); ok {
-		parent.withDisplayName(res)
-	}
+	return string(enc)
 }

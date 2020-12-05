@@ -18,14 +18,13 @@ require (
 	github.com/ProtonMail/go-apple-mobileconfig v0.0.0-20160701194735-7ea9927a11f6
 	github.com/ProtonMail/go-autostart v0.0.0-20181114175602-c5272053443a
 	github.com/ProtonMail/go-imap-id v0.0.0-20190926060100-f94a56b9ecde
+	github.com/ProtonMail/go-rfc5322 v0.2.0
 	github.com/ProtonMail/go-vcard v0.0.0-20180326232728-33aaa0a0c8a5
 	github.com/ProtonMail/gopenpgp/v2 v2.0.1
 	github.com/PuerkitoBio/goquery v1.5.1
 	github.com/abiosoft/ishell v2.0.0+incompatible
 	github.com/abiosoft/readline v0.0.0-20180607040430-155bce2042db // indirect
 	github.com/allan-simon/go-singleinstance v0.0.0-20160830203053-79edcfdc2dfc
-	github.com/antlr/antlr4 v0.0.0-20201020194047-0a7eaede42b0
-	github.com/certifi/gocertifi v0.0.0-20200211180108-c7c1fbc02894 // indirect
 	github.com/chzyer/logex v1.1.10 // indirect
 	github.com/chzyer/test v0.0.0-20180213035817-a1ea475d72b1 // indirect
 	github.com/cucumber/godog v0.8.1
@@ -43,7 +42,7 @@ require (
 	github.com/emersion/go-vcard v0.0.0-20190105225839-8856043f13c5 // indirect
 	github.com/fatih/color v1.9.0
 	github.com/flynn-archive/go-shlex v0.0.0-20150515145356-3f9db97f8568 // indirect
-	github.com/getsentry/raven-go v0.2.0
+	github.com/getsentry/sentry-go v0.8.0
 	github.com/go-resty/resty/v2 v2.3.0
 	github.com/golang/mock v1.4.4
 	github.com/google/go-cmp v0.5.1
@@ -60,7 +59,7 @@ require (
 	github.com/nsf/jsondiff v0.0.0-20200515183724-f29ed568f4ce
 	github.com/olekukonko/tablewriter v0.0.4 // indirect
 	github.com/pkg/errors v0.9.1
-	github.com/sirupsen/logrus v1.6.0
+	github.com/sirupsen/logrus v1.7.0
 	github.com/skratchdot/open-golang v0.0.0-20200116055534-eef842397966
 	github.com/ssor/bom v0.0.0-20170718123548-6386211fdfcf // indirect
 	github.com/stretchr/testify v1.6.1
@@ -75,7 +74,7 @@ require (
 
 replace (
 	github.com/docker/docker-credential-helpers => github.com/renatoaguiar/docker-credential-helpers v1.1.1
-	github.com/emersion/go-imap => github.com/ProtonMail/go-imap v0.0.0-20201016095853-a7520cc904d3
+	github.com/emersion/go-imap => github.com/ProtonMail/go-imap v0.0.0-20201102134601-418cd74e9474
 	github.com/emersion/go-smtp => github.com/ProtonMail/go-smtp v0.0.0-20181206232543-8261df20d309
 	github.com/jameskeane/bcrypt => github.com/ProtonMail/bcrypt v0.0.0-20170924085257-7509ea014998
 	golang.org/x/crypto => github.com/ProtonMail/crypto v0.0.0-20200818122824-ed5d25e28db8

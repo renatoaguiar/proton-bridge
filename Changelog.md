@@ -1,8 +1,45 @@
-# ProtonMail Bridge Changelog
+# ProtonMail Bridge and Import-Export app Changelog
 
 Changelog [format](http://keepachangelog.com/en/1.0.0/)
 
-## Unreleased
+## [Bridge 1.5.2] Golden Gate
+
+### Changed
+* GODT-883 Use `ClearPacket` for `text/plain` with signature
+
+
+## [Bridge 1.5.1] Golden Gate
+
+### Added
+* GODT-701 Try load messages one-by-one if IMAP server errors with batch load
+  and not interrupt the transfer.
+* GODT-878 Tests for send packet creation logic.
+
+### Changed
+* GODT-180 Updated Sentry client.
+* GODT-651 Build creates proper binary names.
+* GODT-878 Fix an issue where the random session key is inadvertently sent to
+  the Proton server. The data payload is always encrypted within TLS, but this
+  is still a potential privacy problem. Discovered by Proton's internal
+  security audit team.
+* GODT-878 Refactor and move the send packet creation logic to `pmapi.SendMessageReq`.
+* GODT-878 Encryption of session keys moved to pmapi.
+
+
+## [IE 1.2.1, 1.2.2] Elbe
+
+### Added
+* GODT-799 Skipped messages do not change total counts but shows as separate number.
+
+## Fixed
+* GODT-799 Fix skipping unwanted folders importing from mbox files.
+* GODT-769 Close connection before deleting labels to prevent panics accessing deleted bucket.
+
+### Removed
+* GODT-766 Remove GUI popup for IMAP TLS error.
+
+
+## [Bridge 1.5.0] Golden Gate
 
 ### Changed
 * Updated go-mbox dependency back to upstream.
@@ -11,6 +48,8 @@ Changelog [format](http://keepachangelog.com/en/1.0.0/)
 * GODT-847 Waiting for unilateral update during deleting the message.
 * GODT-849 Show in error counts in the end also lost messages.
 * GODT-835 Do not include conversation ID in references to show properly conversation threads in clients.
+* GODT-685 Improve deb packaging regarding dejavu font
+
 
 ## [IE 1.2.0] Elbe
 

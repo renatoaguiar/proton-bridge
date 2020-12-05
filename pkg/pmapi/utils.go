@@ -15,36 +15,9 @@
 // You should have received a copy of the GNU General Public License
 // along with ProtonMail Bridge.  If not, see <https://www.gnu.org/licenses/>.
 
-package rfc5322
+package pmapi
 
-import (
-	"github.com/ProtonMail/proton-bridge/pkg/message/rfc5322/parser"
-	"github.com/sirupsen/logrus"
-)
-
-type obsDomain struct {
-	atoms []string
-}
-
-func (p *obsDomain) withAtom(atom *atom) {
-	p.atoms = append(p.atoms, atom.value)
-}
-
-func (w *walker) EnterObsDomain(ctx *parser.ObsDomainContext) {
-	logrus.WithField("text", ctx.GetText()).Trace("Entering obsDomain")
-	w.enter(&obsDomain{})
-}
-
-func (w *walker) ExitObsDomain(ctx *parser.ObsDomainContext) {
-	logrus.WithField("text", ctx.GetText()).Trace("Exiting obsDomain")
-
-	type withObsDomain interface {
-		withObsDomain(*obsDomain)
-	}
-
-	res := w.exit().(*obsDomain)
-
-	if parent, ok := w.parent().(withObsDomain); ok {
-		parent.withObsDomain(res)
-	}
-}
+func iHasFlag(i, flag int) bool           { return i&flag == flag }
+func iHasAtLeastOneFlag(i, flag int) bool { return i&flag > 0 }
+func iIsFlag(i, flag int) bool            { return i == flag }
+func iHasNoneOfFlag(i, flag int) bool     { return !iHasAtLeastOneFlag(i, flag) }
