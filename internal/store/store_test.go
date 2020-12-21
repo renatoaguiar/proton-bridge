@@ -18,11 +18,12 @@
 package store
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"sync"
 	"testing"
+	"time"
 
 	storemocks "github.com/ProtonMail/proton-bridge/internal/store/mocks"
 	"github.com/ProtonMail/proton-bridge/pkg/pmapi"
@@ -43,13 +44,14 @@ const (
 type mocksForStore struct {
 	tb testing.TB
 
-	ctrl          *gomock.Controller
-	events        *storemocks.MockListener
-	user          *storemocks.MockBridgeUser
-	client        *pmapimocks.MockClient
-	clientManager *storemocks.MockClientManager
-	panicHandler  *storemocks.MockPanicHandler
-	store         *Store
+	ctrl           *gomock.Controller
+	events         *storemocks.MockListener
+	user           *storemocks.MockBridgeUser
+	client         *pmapimocks.MockClient
+	clientManager  *storemocks.MockClientManager
+	panicHandler   *storemocks.MockPanicHandler
+	changeNotifier *storemocks.MockChangeNotifier
+	store          *Store
 
 	tmpDir string
 	cache  *Cache
@@ -58,13 +60,14 @@ type mocksForStore struct {
 func initMocks(tb testing.TB) (*mocksForStore, func()) {
 	ctrl := gomock.NewController(tb)
 	mocks := &mocksForStore{
-		tb:            tb,
-		ctrl:          ctrl,
-		events:        storemocks.NewMockListener(ctrl),
-		user:          storemocks.NewMockBridgeUser(ctrl),
-		client:        pmapimocks.NewMockClient(ctrl),
-		clientManager: storemocks.NewMockClientManager(ctrl),
-		panicHandler:  storemocks.NewMockPanicHandler(ctrl),
+		tb:             tb,
+		ctrl:           ctrl,
+		events:         storemocks.NewMockListener(ctrl),
+		user:           storemocks.NewMockBridgeUser(ctrl),
+		client:         pmapimocks.NewMockClient(ctrl),
+		clientManager:  storemocks.NewMockClientManager(ctrl),
+		panicHandler:   storemocks.NewMockPanicHandler(ctrl),
+		changeNotifier: storemocks.NewMockChangeNotifier(ctrl),
 	}
 
 	// Called during clean-up.
@@ -89,7 +92,7 @@ func initMocks(tb testing.TB) (*mocksForStore, func()) {
 	}
 }
 
-func (mocks *mocksForStore) newStoreNoEvents(combinedMode bool) { //nolint[unparam]
+func (mocks *mocksForStore) newStoreNoEvents(combinedMode bool, msgs ...*pmapi.Message) { //nolint[unparam]
 	mocks.user.EXPECT().ID().Return("userID").AnyTimes()
 	mocks.user.EXPECT().IsConnected().Return(true)
 	mocks.user.EXPECT().IsCombinedAddressMode().Return(combinedMode)
@@ -102,20 +105,19 @@ func (mocks *mocksForStore) newStoreNoEvents(combinedMode bool) { //nolint[unpar
 	})
 	mocks.client.EXPECT().ListLabels()
 	mocks.client.EXPECT().CountMessages("")
-	mocks.client.EXPECT().GetEvent(gomock.Any()).
-		Return(&pmapi.Event{
-			EventID: "latestEventID",
-		}, nil).AnyTimes()
 
-	// We want to wait until first sync has finished.
-	firstSyncWaiter := sync.WaitGroup{}
-	firstSyncWaiter.Add(1)
-	mocks.client.EXPECT().
-		ListMessages(gomock.Any()).
-		DoAndReturn(func(*pmapi.MessagesFilter) ([]*pmapi.Message, int, error) {
-			firstSyncWaiter.Done()
-			return []*pmapi.Message{}, 0, nil
-		})
+	// Call to get latest event ID and then to process first event.
+	mocks.client.EXPECT().GetEvent("").Return(&pmapi.Event{
+		EventID: "firstEventID",
+	}, nil)
+	mocks.client.EXPECT().GetEvent("firstEventID").Return(&pmapi.Event{
+		EventID: "latestEventID",
+	}, nil)
+
+	mocks.client.EXPECT().ListMessages(gomock.Any()).Return(msgs, len(msgs), nil).AnyTimes()
+	for _, msg := range msgs {
+		mocks.client.EXPECT().GetMessage(msg.ID).Return(msg, nil).AnyTimes()
+	}
 
 	var err error
 	mocks.store, err = New(
@@ -128,6 +130,16 @@ func (mocks *mocksForStore) newStoreNoEvents(combinedMode bool) { //nolint[unpar
 	)
 	require.NoError(mocks.tb, err)
 
-	// Wait for sync to finish.
-	firstSyncWaiter.Wait()
+	// We want to wait until first sync has finished.
+	require.Eventually(mocks.tb, func() bool {
+		for _, msg := range msgs {
+			_, err := mocks.store.getMessageFromDB(msg.ID)
+			if err != nil {
+				// To see in test result the latest error for debugging.
+				fmt.Println("Sync wait error:", err)
+				return false
+			}
+		}
+		return true
+	}, 5*time.Second, 10*time.Millisecond)
 }

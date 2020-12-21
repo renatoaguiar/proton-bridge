@@ -118,7 +118,7 @@ func (im *imapMailbox) Status(items []imap.StatusItem) (*imap.MailboxStatus, err
 	l.Data["address"] = im.storeAddress.AddressID()
 	status := imap.NewMailboxStatus(im.name, items)
 	status.UidValidity = im.storeMailbox.UIDValidity()
-	status.PermanentFlags = []string{
+	status.Flags = []string{
 		imap.SeenFlag, strings.ToUpper(imap.SeenFlag),
 		imap.FlaggedFlag, strings.ToUpper(imap.FlaggedFlag),
 		imap.DeletedFlag, strings.ToUpper(imap.DeletedFlag),
@@ -127,6 +127,7 @@ func (im *imapMailbox) Status(items []imap.StatusItem) (*imap.MailboxStatus, err
 		message.ThunderbirdJunkFlag,
 		message.ThunderbirdNonJunkFlag,
 	}
+	status.PermanentFlags = append([]string{}, status.Flags...)
 
 	dbTotal, dbUnread, dbUnreadSeqNum, err := im.storeMailbox.GetCounts()
 	l.WithFields(logrus.Fields{
@@ -177,6 +178,9 @@ func (im *imapMailbox) Check() error {
 // Expunge permanently removes all messages that have the \Deleted flag set
 // from the currently selected mailbox.
 func (im *imapMailbox) Expunge() error {
+	im.user.backend.setUpdatesBeBlocking(im.user.currentAddressLowercase, im.name, operationDeleteMessage)
+	defer im.user.backend.unsetUpdatesBeBlocking(im.user.currentAddressLowercase, im.name, operationDeleteMessage)
+
 	return im.storeMailbox.RemoveDeleted()
 }
 

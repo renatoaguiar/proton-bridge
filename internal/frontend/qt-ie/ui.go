@@ -73,6 +73,7 @@ type GoQMLInterface struct {
 	_ func(okay bool)        `signal:"importStructuresLoadFinished"`
 	_ func()                 `signal:"openManual"`
 	_ func(showMessage bool) `signal:"runCheckVersion"`
+	_ func()                 `slot:"openLicenseFile"`
 	_ func()                 `slot:"getLocalVersionInfo"`
 	_ func()                 `slot:"loadImportReports"`
 
@@ -95,7 +96,7 @@ type GoQMLInterface struct {
 	_ func() string                                                                        `slot:"leastUsedColor"`
 	_ func(username string, name string, color string, isLabel bool, sourceID string) bool `slot:"createLabelOrFolder"`
 	_ func(fpath, address, fileType string, attachEncryptedBody bool)                      `slot:"startExport"`
-	_ func(email string)                                                                   `slot:"startImport"`
+	_ func(email string, importEncrypted bool)                                             `slot:"startImport"`
 	_ func()                                                                               `slot:"resetSource"`
 
 	_ func(isFromIMAP bool, sourcePath, sourceEmail, sourcePassword, sourceServe, sourcePort, targetAddress string) `slot:"setupAndLoadForImport"`
@@ -167,6 +168,7 @@ func (s *GoQMLInterface) SetFrontend(f *FrontendQt) {
 	s.SetIsRestarting(false)
 	s.SetProgramTitle(f.programName)
 
+	s.ConnectOpenLicenseFile(f.openLicenseFile)
 	s.ConnectGetLocalVersionInfo(f.getLocalVersionInfo)
 	s.ConnectIsNewVersionAvailable(f.isNewVersionAvailable)
 	s.ConnectGetBackendVersion(func() string {

@@ -189,6 +189,61 @@ func (c *Config) GetLogPrefix() string {
 	return "v" + c.version + "_" + c.revision
 }
 
+// GetLicenseFilePath returns path to liense file.
+func (c *Config) GetLicenseFilePath() string {
+	path := c.getLicenseFilePath()
+	log.WithField("path", path).Info("License file path")
+	return path
+}
+
+func (c *Config) getLicenseFilePath() string {
+	// User can install app to different location, or user can run it
+	// directly from the package without installation, or it could be
+	// automatically updated (app started from differenet location).
+	// For all those cases, first let's check LICENSE next to the binary.
+	path := filepath.Join(filepath.Dir(os.Args[0]), "LICENSE")
+	if _, err := os.Stat(path); err == nil {
+		return path
+	}
+
+	switch runtime.GOOS {
+	case "linux":
+		appName := c.appName
+		if c.appName == "importExport" {
+			appName = "import-export"
+		}
+		// Most Linux distributions.
+		path := "/usr/share/doc/protonmail/" + appName + "/LICENSE"
+		if _, err := os.Stat(path); err == nil {
+			return path
+		}
+		// Arch distributions.
+		return "/usr/share/licenses/protonmail-" + appName + "/LICENSE"
+	case "darwin": //nolint[goconst]
+		path := filepath.Join(filepath.Dir(os.Args[0]), "..", "Resources", "LICENSE")
+		if _, err := os.Stat(path); err == nil {
+			return path
+		}
+
+		appName := "ProtonMail Bridge.app"
+		if c.appName == "importExport" {
+			appName = "ProtonMail Import-Export.app"
+		}
+		return "/Applications/" + appName + "/Contents/Resources/LICENSE"
+	case "windows":
+		path := filepath.Join(filepath.Dir(os.Args[0]), "LICENSE.txt")
+		if _, err := os.Stat(path); err == nil {
+			return path
+		}
+		// This should not happen, Windows should be handled by relative
+		// location to the binary above. This is just fallback which may
+		// or may not work, depends where user installed the app and how
+		// user started the app.
+		return filepath.FromSlash("C:/Program Files/Proton Technologies AG/ProtonMail Bridge/LICENSE.txt")
+	}
+	return ""
+}
+
 // GetTLSCertPath returns path to certificate; used for TLS servers (IMAP, SMTP and API).
 func (c *Config) GetTLSCertPath() string {
 	return filepath.Join(c.appDirs.UserConfig(), "cert.pem")

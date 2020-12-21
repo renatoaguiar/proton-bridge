@@ -1,4 +1,4 @@
-image: gitlab.protontech.ch:4567/go/bridge-internal
+image: gitlab.protontech.ch:4567/go/bridge-internal:latest
 
 before_script:
   - eval $(ssh-agent -s)
@@ -45,6 +45,8 @@ lint:
     - branches
   script:
     - make lint
+  tags:
+    - medium
 
 test:
   stage: test
@@ -60,6 +62,8 @@ test:
     - pass init `gpg --list-keys | grep "^   " | tail -1 | tr -d '[:space:]'`
     # Then finally run the tests
     - make test
+  tags:
+    - medium
 
 test-integration:
   stage: test
@@ -67,6 +71,8 @@ test-integration:
     - branches
   script:
     - VERBOSITY=debug make -C test test
+  tags:
+    - large
 
 dependency-updates:
   stage: test
@@ -85,6 +91,8 @@ dependency-updates:
     # Note: The latest artifacts for refs are locked against deletion, and kept regardless of the expiry time.
     # Introduced in GitLab 13.0 behind a disabled feature flag, and made the default behavior in GitLab 13.4.
     expire_in: 1 day
+  tags:
+    - large
 
 build-linux:
   extends: .build-base

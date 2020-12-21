@@ -10,8 +10,8 @@ TARGET_OS?=${GOOS}
 .PHONY: build build-ie build-nogui build-ie-nogui check-has-go
 
 # Keep version hardcoded so app build works also without Git repository.
-BRIDGE_APP_VERSION?=1.5.2-git
-IE_APP_VERSION?=1.2.2-git
+BRIDGE_APP_VERSION?=1.5.4-git
+IE_APP_VERSION?=1.2.3-git
 APP_VERSION:=${BRIDGE_APP_VERSION}
 SRC_ICO:=logo.ico
 SRC_ICNS:=Bridge.icns
@@ -64,6 +64,12 @@ ifeq "${TARGET_CMD}" "Import-Export"
     TGZ_TARGET:=ie_${TARGET_OS}_${REVISION}.tgz
 endif
 
+ifdef QT_API
+    VENDOR_TARGET:=prepare-vendor update-qt-docs
+else
+    VENDOR_TARGET=update-vendor
+endif
+
 build: ${TGZ_TARGET}
 build-ie:
 	TARGET_CMD=Import-Export $(MAKE) build
@@ -106,7 +112,7 @@ ifneq "${GOOS}" "${TARGET_OS}"
   endif
 endif
 
-${EXE_TARGET}: check-has-go gofiles ${ICO_FILES} update-vendor
+${EXE_TARGET}: check-has-go gofiles ${ICO_FILES} ${VENDOR_TARGET}
 	rm -rf deploy ${TARGET_OS} ${DEPLOY_DIR}
 	cp cmd/${TARGET_CMD}/main.go .
 	qtdeploy ${BUILD_FLAGS} ${QT_BUILD_TARGET}
@@ -123,7 +129,7 @@ icon_windows.syso: icon.rc logo.ico
 
 
 ## Rules for therecipe/qt
-.PHONY: prepare-vendor update-vendor
+.PHONY: prepare-vendor update-vendor update-qt-docs
 THERECIPE_ENV:=github.com/therecipe/env_${TARGET_OS}_amd64_513
 
 # vendor folder will be deleted by gomod hence we cache the big repo
@@ -148,6 +154,8 @@ prepare-vendor:
 update-vendor: vendor-cache/${THERECIPE_ENV} prepare-vendor
 	${LINKCMD}
 
+update-qt-docs:
+	go get github.com/therecipe/qt/internal/binding/files/docs/$(QT_API)
 
 ## Dev dependencies
 .PHONY: install-devel-tools install-linter install-go-mod-outdated
@@ -209,14 +217,17 @@ coverage: test
 mocks:
 	mockgen --package mocks github.com/ProtonMail/proton-bridge/internal/users Configer,PanicHandler,ClientManager,CredentialsStorer,StoreMaker > internal/users/mocks/mocks.go
 	mockgen --package mocks github.com/ProtonMail/proton-bridge/internal/transfer PanicHandler,ClientManager,IMAPClientProvider > internal/transfer/mocks/mocks.go
-	mockgen --package mocks github.com/ProtonMail/proton-bridge/internal/store PanicHandler,ClientManager,BridgeUser > internal/store/mocks/mocks.go
+	mockgen --package mocks github.com/ProtonMail/proton-bridge/internal/store PanicHandler,ClientManager,BridgeUser,ChangeNotifier > internal/store/mocks/mocks.go
 	mockgen --package mocks github.com/ProtonMail/proton-bridge/pkg/listener Listener > internal/store/mocks/utils_mocks.go
 	mockgen --package mocks github.com/ProtonMail/proton-bridge/pkg/pmapi Client > pkg/pmapi/mocks/mocks.go
 
-lint: lint-golang lint-license
+lint: lint-golang lint-license lint-changelog
 
 lint-license:
 	./utils/missing_license.sh check
+
+lint-changelog:
+	./utils/changelog_linter.sh
 
 lint-golang:
 	which golangci-lint || $(MAKE) install-linter
