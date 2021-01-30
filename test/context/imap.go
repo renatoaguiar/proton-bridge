@@ -1,4 +1,4 @@
-// Copyright (c) 2020 Proton Technologies AG
+// Copyright (c) 2021 Proton Technologies AG
 //
 // This file is part of ProtonMail Bridge.Bridge.
 //
@@ -71,10 +71,16 @@ func (ctx *TestContext) withIMAPServer() {
 
 // SetIMAPLastResponse sets the last IMAP response that was received.
 func (ctx *TestContext) SetIMAPLastResponse(handle string, resp *mocks.IMAPResponse) {
+	ctx.imapResponseLocker.Lock()
+	defer ctx.imapResponseLocker.Unlock()
+
 	ctx.imapLastResponses[handle] = resp
 }
 
 // GetIMAPLastResponse returns the last IMAP response that was received.
 func (ctx *TestContext) GetIMAPLastResponse(handle string) *mocks.IMAPResponse {
+	ctx.imapResponseLocker.Lock()
+	defer ctx.imapResponseLocker.Unlock()
+
 	return ctx.imapLastResponses[handle]
 }

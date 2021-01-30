@@ -1,4 +1,4 @@
-// Copyright (c) 2020 Proton Technologies AG
+// Copyright (c) 2021 Proton Technologies AG
 //
 // This file is part of ProtonMail Bridge.
 //
@@ -54,7 +54,6 @@ Rectangle {
         width : root.isHovered ? cellText.contentWidth   : root.width
         font {
             pointSize : Style.main.textSize * Style.pt
-            family    : Style.fontawesome.name
         }
     }
 

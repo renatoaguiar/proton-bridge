@@ -1,4 +1,4 @@
-// Copyright (c) 2020 Proton Technologies AG
+// Copyright (c) 2021 Proton Technologies AG
 //
 // This file is part of ProtonMail Bridge.
 //
@@ -83,7 +83,6 @@ Column {
             selectionColor      : Style.main.textBlue
             font {
                 pointSize : Style.dialog.fontSize * Style.pt
-                family    : Style.fontawesome.name
             }
             padding: 0
             background: Rectangle {

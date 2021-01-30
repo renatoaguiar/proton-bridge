@@ -1,4 +1,4 @@
-// Copyright (c) 2020 Proton Technologies AG
+// Copyright (c) 2021 Proton Technologies AG
 //
 // This file is part of ProtonMail Bridge.
 //
@@ -70,7 +70,10 @@ func (im *imapMailbox) CreateMessage(flags []string, date time.Time, body imap.L
 	// Called from go-imap in goroutines - we need to handle panics for each function.
 	defer im.panicHandler.HandlePanic()
 
-	m, _, _, readers, err := message.Parse(body, "", "")
+	im.user.appendStarted()
+	defer im.user.appendFinished()
+
+	m, _, _, readers, err := message.Parse(body)
 	if err != nil {
 		return err
 	}
@@ -229,6 +232,12 @@ func (im *imapMailbox) getMessage(storeMessage storeMessageProvider, items []ima
 			}
 		case imap.FetchInternalDate:
 			msg.InternalDate = time.Unix(m.Time, 0)
+
+			// Apple Mail crashes fetching messages with date older than 1970.
+			// There is no point having message older than RFC itself, it's not possible.
+			if msg.InternalDate.Before(rfc822Birthday) {
+				msg.InternalDate = rfc822Birthday
+			}
 		case imap.FetchRFC822Size:
 			// Size attribute on the server counts encrypted data. The value is cleared
 			// on our part and we need to compute "real" size of decrypted data.

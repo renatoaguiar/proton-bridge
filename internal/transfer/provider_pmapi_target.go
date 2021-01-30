@@ -1,4 +1,4 @@
-// Copyright (c) 2020 Proton Technologies AG
+// Copyright (c) 2021 Proton Technologies AG
 //
 // This file is part of ProtonMail Bridge.
 //
@@ -263,7 +263,7 @@ func (p *PMAPIProvider) parseMessage(msg Message) (m *pmapi.Message, r []io.Read
 			}
 		}
 	}()
-	message, _, _, attachmentReaders, err := pkgMessage.Parse(bytes.NewBuffer(msg.Body), "", "")
+	message, _, _, attachmentReaders, err := pkgMessage.Parse(bytes.NewBuffer(msg.Body))
 	return message, attachmentReaders, err
 }
 

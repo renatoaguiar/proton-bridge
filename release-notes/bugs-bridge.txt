@@ -1,3 +1,1 @@
-• AppleMail crashes (timestamp related)
-• Encoding errors
-• Installation issues on linux
+• Fixed sending error caused by inconsistent use of upper and lower case in sender’s email address

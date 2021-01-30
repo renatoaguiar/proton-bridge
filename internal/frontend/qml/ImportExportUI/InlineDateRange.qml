@@ -1,4 +1,4 @@
-// Copyright (c) 2020 Proton Technologies AG
+// Copyright (c) 2021 Proton Technologies AG
 //
 // This file is part of ProtonMail Bridge.
 //
@@ -47,7 +47,6 @@ Row {
         text : qsTr("Date range")
         font {
             bold: true
-            family: Style.fontawesome.name
             pointSize: Style.main.fontSize * Style.pt
         }
         color: Style.main.text

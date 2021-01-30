@@ -40,6 +40,17 @@ make build
     * for `windows`, the binary will have the file extension `.exe` (e.g `proton-bridge.exe`)
     * for `darwin`, the application will be created with name of the project directory (e.g `proton-bridge.app`)
 
+#### Build Bridge without GUI
+* If you need to build bridge without Qt dependencies, you can do so by running
+
+```bash
+make build-nogui
+```
+
+* Bridge without GUI will start by default without any interface (i.e., there is no way to add or remove client, get bridge password, etc)
+* Bridge always has the option (whether built with Qt or without) to use a CLI interface by starting it with the argument `-c`
+* NOTE: You still need to setup supported keychain on your system
+
 ### Build Import-Export
 * in project root run
 

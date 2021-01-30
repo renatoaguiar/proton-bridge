@@ -1,4 +1,4 @@
-// Copyright (c) 2020 Proton Technologies AG
+// Copyright (c) 2021 Proton Technologies AG
 //
 // This file is part of ProtonMail Bridge.
 //
@@ -208,7 +208,11 @@ func (s *FrontendQt) watchEvents() {
 			s.Qml.ShowWindow()
 		case <-restartBridgeCh:
 			s.Qml.SetIsRestarting(true)
-			s.App.Quit()
+			// watchEvents is started in parallel with the Qt app.
+			// If the event comes too early, app might not be ready yet.
+			if s.App != nil {
+				s.App.Quit()
+			}
 		case address := <-addressChangedCh:
 			s.Qml.NotifyAddressChanged(address)
 		case address := <-addressChangedLogoutCh:

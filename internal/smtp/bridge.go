@@ -1,4 +1,4 @@
-// Copyright (c) 2020 Proton Technologies AG
+// Copyright (c) 2021 Proton Technologies AG
 //
 // This file is part of ProtonMail Bridge.
 //
@@ -63,5 +63,11 @@ func newBridgeUserWrap(bridgeUser *users.User) *bridgeUserWrap {
 }
 
 func (u *bridgeUserWrap) GetStore() storeUserProvider {
-	return u.User.GetStore()
+	// We need to explicitly return nil otherwise it's wrapped nil
+	// and condition `store == nil` would fail.
+	store := u.User.GetStore()
+	if store == nil {
+		return nil
+	}
+	return store
 }

@@ -1,4 +1,4 @@
-// Copyright (c) 2020 Proton Technologies AG
+// Copyright (c) 2021 Proton Technologies AG
 //
 // This file is part of ProtonMail Bridge.
 //
@@ -23,7 +23,6 @@ import (
 	"github.com/ProtonMail/proton-bridge/pkg/message"
 	"github.com/ProtonMail/proton-bridge/pkg/pmapi"
 	"github.com/emersion/go-imap"
-	specialuse "github.com/emersion/go-imap-specialuse"
 	"github.com/sirupsen/logrus"
 )
 
@@ -86,17 +85,17 @@ func (im *imapMailbox) getFlags() []string {
 	}
 	switch im.storeMailbox.LabelID() {
 	case pmapi.SentLabel:
-		flags = append(flags, specialuse.Sent)
+		flags = append(flags, imap.SentAttr)
 	case pmapi.TrashLabel:
-		flags = append(flags, specialuse.Trash)
+		flags = append(flags, imap.TrashAttr)
 	case pmapi.SpamLabel:
-		flags = append(flags, specialuse.Junk)
+		flags = append(flags, imap.JunkAttr)
 	case pmapi.ArchiveLabel:
-		flags = append(flags, specialuse.Archive)
+		flags = append(flags, imap.ArchiveAttr)
 	case pmapi.AllMailLabel:
-		flags = append(flags, specialuse.All)
+		flags = append(flags, imap.AllAttr)
 	case pmapi.DraftLabel:
-		flags = append(flags, specialuse.Drafts)
+		flags = append(flags, imap.DraftsAttr)
 	}
 
 	return flags
@@ -178,6 +177,17 @@ func (im *imapMailbox) Check() error {
 // Expunge permanently removes all messages that have the \Deleted flag set
 // from the currently selected mailbox.
 func (im *imapMailbox) Expunge() error {
+	// Wait for any APPENDS to finish in order to avoid data loss when
+	// Outlook sends commands too quickly STORE \Deleted, APPEND, EXPUNGE,
+	// APPEND FINISHED:
+	//
+	// Based on Outlook APPEND request we will not create new message but
+	// move the original to desired mailbox. If the message is currently
+	// in Trash or Spam and EXPUNGE happens before APPEND processing is
+	// finished the message is deleted from Proton instead of moved to
+	// the desired mailbox.
+	im.user.waitForAppend()
+
 	im.user.backend.setUpdatesBeBlocking(im.user.currentAddressLowercase, im.name, operationDeleteMessage)
 	defer im.user.backend.unsetUpdatesBeBlocking(im.user.currentAddressLowercase, im.name, operationDeleteMessage)
 

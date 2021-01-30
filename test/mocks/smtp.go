@@ -1,4 +1,4 @@
-// Copyright (c) 2020 Proton Technologies AG
+// Copyright (c) 2021 Proton Technologies AG
 //
 // This file is part of ProtonMail Bridge.Bridge.
 //
@@ -74,6 +74,9 @@ func (c *SMTPClient) SendCommands(commands ...string) *SMTPResponse {
 	smtpResponse := &SMTPResponse{t: c.t}
 
 	for _, command := range commands {
+		command = strings.ReplaceAll(command, "[userAddress]", c.address)
+		command = strings.ReplaceAll(command, "[userAddress|capitalize]", strings.Title(c.address))
+
 		tstart := time.Now()
 
 		c.debug.printReq(command)
