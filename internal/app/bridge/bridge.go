@@ -20,7 +20,6 @@ package bridge
 
 import (
 	"crypto/tls"
-	"time"
 
 	"github.com/ProtonMail/proton-bridge/internal/api"
 	"github.com/ProtonMail/proton-bridge/internal/app/base"
@@ -129,16 +128,6 @@ func run(b *base.Base, c *cli.Context) error { // nolint[funlen]
 		b.Autostart,
 		b,
 	)
-
-	// Watch for updates routine
-	go func() {
-		ticker := time.NewTicker(time.Hour)
-
-		for {
-			checkAndHandleUpdate(b.Updater, f, b.Settings.GetBool(settings.AutoUpdateKey))
-			<-ticker.C
-		}
-	}()
 
 	return f.Loop()
 }
