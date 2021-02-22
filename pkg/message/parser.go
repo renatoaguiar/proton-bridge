@@ -24,6 +24,7 @@ import (
 	"mime"
 	"net/mail"
 	"net/textproto"
+	"regexp"
 	"strings"
 
 	"github.com/ProtonMail/go-rfc5322"
@@ -38,6 +39,15 @@ import (
 
 // Parse parses RAW message.
 func Parse(r io.Reader) (m *pmapi.Message, mimeBody, plainBody string, attReaders []io.Reader, err error) {
+	defer func() {
+		r := recover()
+		if r == nil {
+			return
+		}
+
+		err = fmt.Errorf("panic while parsing message: %v", r)
+	}()
+
 	p, err := parser.New(r)
 	if err != nil {
 		return nil, "", "", nil, errors.Wrap(err, "failed to create new parser")
@@ -329,8 +339,12 @@ func bestChoice(childParts []parser.Parts, preferredContentType string) parser.P
 		}
 	}
 
-	// Otherwise, choose the last one.
-	return childParts[len(childParts)-1]
+	// Otherwise, choose the last one, if it exists.
+	if len(childParts) > 0 {
+		return childParts[len(childParts)-1]
+	}
+
+	return parser.Parts{}
 }
 
 func allPartsHaveContentType(parts parser.Parts, contentType string) bool {
@@ -471,6 +485,9 @@ func parseMessageHeader(m *pmapi.Message, h message.Header) error { // nolint[fu
 				return errors.Wrap(err, "failed to parse date")
 			}
 			m.Time = date.Unix()
+
+		case "message-id":
+			m.ExternalID = regexp.MustCompile("<(.*)>").ReplaceAllString(fields.Value(), "$1")
 		}
 	}
 
@@ -512,7 +529,17 @@ func parseAttachment(h message.Header) (*pmapi.Attachment, error) {
 
 	// Only set ContentID if it should be inline;
 	// API infers content disposition based on whether ContentID is present.
-	if disp, _, err := h.ContentDisposition(); err == nil && disp == "inline" {
+	// If Content-Disposition is present, we base our decision on that.
+	// Otherwise, if Content-Disposition is missing but there is a ContentID, set it.
+	// (This is necessary because some clients don't set Content-Disposition at all,
+	// so we need to rely on other information to deduce if it's inline or attachment.)
+	if h.Has("Content-Disposition") {
+		if disp, _, err := h.ContentDisposition(); err != nil {
+			return nil, err
+		} else if disp == "inline" {
+			att.ContentID = strings.Trim(h.Get("Content-Id"), " <>")
+		}
+	} else if h.Has("Content-Id") {
 		att.ContentID = strings.Trim(h.Get("Content-Id"), " <>")
 	}
 

@@ -137,6 +137,7 @@ Dialog {
             spacing: Style.dialog.spacing
             ButtonRounded {
                 id:buttonNo
+                visible: root.state != "toggleEarlyAccess"
                 color_main: Style.dialog.text
                 fa_icon: Style.fa.times
                 text: qsTr("No")
@@ -148,7 +149,7 @@ Dialog {
                 color_minor: Style.main.textBlue
                 isOpaque: true
                 fa_icon: Style.fa.check
-                text: qsTr("Yes")
+                text: root.state == "toggleEarlyAccess" ?  qsTr("Ok") : qsTr("Yes")
                 onClicked : {
                     currentIndex=1
                     root.confirmed()
@@ -293,6 +294,28 @@ Dialog {
             }
         },
         State {
+            name: "toggleEarlyAccessOn"
+            PropertyChanges {
+                target: root
+                currentIndex : 0
+                question     : qsTr("Do you want to be the first to get the latest updates? Please keep in mind that early versions may be less stable.")
+                note         : ""
+                title        : qsTr("Enable early access")
+                answer       : qsTr("Enabling early access...")
+            }
+        },
+        State {
+            name: "toggleEarlyAccessOff"
+            PropertyChanges {
+                target: root
+                currentIndex : 0
+                question     : qsTr("Are you sure you want to leave early access? Please keep in mind this operation clears the cache and restarts Bridge.")
+                note         : qsTr("This will delete all of your stored preferences as well as cached email data for all accounts, temporarily slowing down the email download process significantly.")
+                title        : qsTr("Disable early access")
+                answer       : qsTr("Disabling early access...")
+            }
+        },
+        State {
             name: "noKeychain"
             PropertyChanges {
                 target: root
@@ -340,12 +363,8 @@ Dialog {
         winMain.dialogAddUser     .visible = false
         winMain.dialogChangePort  .visible = false
         winMain.dialogCredits     .visible = false
-        winMain.dialogVersionInfo .visible = false
-        // dialogFirstStart should reappear again after closing global
         root.visible = true
     }
-
-
 
     onConfirmed : {
         if (state == "quit" || state == "instance exists" ) {
@@ -360,17 +379,19 @@ Dialog {
     Connections {
         target: timer
         onTriggered: {
-            if ( state == "addressmode"      ) { go.switchAddressMode   (input) }
-            if ( state == "clearChain"       ) { go.clearKeychain       ()      }
-            if ( state == "clearCache"       ) { go.clearCache          ()      }
-            if ( state == "deleteUser"       ) { go.deleteAccount       (input, checkBoxWrapper.isChecked) }
-            if ( state == "logout"           ) { go.logoutAccount       (input) }
-            if ( state == "toggleAutoStart"  ) { go.toggleAutoStart     ()      }
-            if ( state == "toggleAllowProxy" ) { go.toggleAllowProxy    ()      }
-            if ( state == "quit"             ) { Qt.quit                ()      }
-            if ( state == "instance exists"  ) { Qt.quit                ()      }
-            if ( state == "noKeychain"       ) { Qt.quit                ()      }
-            if ( state == "checkUpdates"     ) { go.runCheckVersion     (true)  }
+            if ( state == "addressmode"       ) { go.switchAddressMode   (input) }
+            if ( state == "clearChain"        ) { go.clearKeychain       ()      }
+            if ( state == "clearCache"        ) { go.clearCache          ()      }
+            if ( state == "deleteUser"        ) { go.deleteAccount       (input, checkBoxWrapper.isChecked) }
+            if ( state == "logout"            ) { go.logoutAccount       (input) }
+            if ( state == "toggleAutoStart"   ) { go.toggleAutoStart     ()      }
+            if ( state == "toggleAllowProxy"  ) { go.toggleAllowProxy    ()      }
+            if ( state == "toggleEarlyAccessOn"  ) { go.toggleEarlyAccess   ()      }
+            if ( state == "toggleEarlyAccessOff" ) { go.toggleEarlyAccess   ()      }
+            if ( state == "quit"              ) { Qt.quit                ()      }
+            if ( state == "instance exists"   ) { Qt.quit                ()      }
+            if ( state == "noKeychain"        ) { Qt.quit                ()      }
+            if ( state == "checkUpdates"      ) { }
         }
     }
 

@@ -2,6 +2,91 @@
 
 Changelog [format](http://keepachangelog.com/en/1.0.0/)
 
+## [Bridge 1.6.3] HZM
+
+### Added
+* GODT-337 Desktop files.
+
+### Changed
+* GODT-885 Do not explicitly unlabel folders during move to match behaviour of other clients.
+* GODT-616 Better user message about wrong mailbox password.
+* GODT-1021 Do not allow copy Inbox->Sent or Sent->Inbox.
+* GODT-976 Exclude updates from clearing cache and clear cache, including updates, while switching early access off.
+* GODT-1033 Retry starting IMAP server after connection was down.
+
+### Fixed
+* GODT-1011 Stable integration test deleting many messages using UID EXPUNGE.
+* GODT-1015 Use lenient version parser to properly parse version provided by Mac.
+* GODT-919 Notify about update right after the start.
+* GODT-919 GODT-1022 Logs and signals.
+
+
+## [IE 1.3.0] Farg
+
+### Changed
+* GODT-1019 Remove dependency on go-apple-mobileconfig.
+* GODT-928 Reject messages which are too large.
+* GODT-999 Sending: do not send empty objects to API.
+
+## [Bridge 1.6.2] HZM
+
+### Fixed
+* GODT-1010 Strip angle brackets from external ID.
+
+## [Bridge 1.6.1] HZM
+
+### Added
+* GODT-1007 Notify user when version is the latest.
+
+### Fixed
+* GODT-787 GODT-978 Fix IE and Bridge importing to Sent not showing up in Inbox (setting up flags properly).
+* GODT-1006 Use correct macOS keychain name.
+* GODT-1009 Set ContentID if present and not explicitly attachment.
+* GODT-1008 Transparent welcome message.
+
+
+## [Bridge 1.6.0] HZM
+
+### Added
+* GODT-705 Allow silent update in Bridge and Import-Export app.
+* GODT-958 Release notes per eaach update channel.
+* GODT-875 Added GUI dialog on force update.
+* GODT-820 Added GUI notification on impossibility of update installation (both silent and manual).
+* GODT-870 Added GUI notification on error during silent update.
+* GODT-805 Added GUI notification on update available.
+* GODT-804 Added GUI notification on silent update installed (promt to restart).
+* GODT-275 Added option to disable autoupdates in settings (default autoupdate is enabled).
+* GODT-874 Added manual triggers to Updater module.
+* GODT-851 Added support of UID EXPUNGE.
+
+### Removed
+* GODT-248 Remove dependency on go-appdir.
+* GODT-208 Remove deprecated use of BuildNameToCertificate.
+
+### Fixed
+* Check deprecated status code first to better determine API error.
+* GODT-831 Fix reporting bug from accounts with empty account name.
+* GODT-831 Cancel request of uploading attachment if reading/writing it fails.
+* GODT-991 Fix panic when stopping import progress during loading mailboxes info.
+* GODT-895 Fix panic when modifying addresses during changing address mode.
+* GODT-946 Fix flaky tests notifying changes.
+* GODT-979 Fix panic when trying to parse a multipart/alternative section that has no child sections.
+* GODT-900 Remove \Deleted flag after re-importing the message (do not delete messages by moving to local folder and back).
+
+### Changed
+* Rename channels `beta->early`, `live->stable`.
+* Bump gopenpgp dependency to v2.1.3 for improved memory usage.
+* GODT-97 Don't log errors caused by SELECT "".
+* GODT-806 GUI dialog on manual update. Added autoupdates checkbox. Simplifyed installation process GUI.
+* GODT-912 Scroll bar behaviour in settings tab.
+* GODT-149 Send heartbeat ASAP on each new calendar day.
+* GODT-792 Stop IMAP server while no internet connection.
+* GODT-792 Cache message size every time to reduce network traffic.
+* GODT-792 Cache body structure in order to reduce network traffic.
+* GODT-792 GODT-908 Cache body structure in order to reduce network traffic.
+* GODT-908 Do not unpause event loop if other mailbox is still fetching.
+
+
 ## [Bridge 1.5.7] Golden Gate
 
 ### Fixed
@@ -73,7 +158,6 @@ CSB-331 Fix sending error due to mixed case in sender address.
 * GODT-878 Tests for send packet creation logic.
 
 ### Changed
-* GODT-180 Updated Sentry client.
 * GODT-651 Build creates proper binary names.
 * GODT-878 Fix an issue where the random session key is inadvertently sent to
   the Proton server. The data payload is always encrypted within TLS, but this
@@ -114,6 +198,7 @@ CSB-331 Fix sending error due to mixed case in sender address.
 * GODT-763 Detect Gmail labels from All Mail mbox export (using X-Gmail-Label header).
 * GODT-834 Info about tags in BUILDS.md and link to Import-Export page in README.md.
 * GODT-777 Support Apple Mail MBOX export format.
+* GODT-731 Re-open Import-Export app from the second instance.
 
 ### Fixed
 * GODT-677 Windows IE: global import settings not fit in window.
@@ -170,6 +255,7 @@ CSB-331 Fix sending error due to mixed case in sender address.
 ### Fixed
 * GODT-770 Better handling of extraneous end-of-mail indicator.
 * GODT-776 Fix crash when IMAP client connects while account is logging in.
+* GODT-744 User agent not being sent to sentry.
 
 ### Changed
 * Bump crypto version to v0.0.0-20200818122824-ed5d25e28db8.
@@ -203,6 +289,7 @@ CSB-331 Fix sending error due to mixed case in sender address.
 * GODT-682 Persistent anonymous API cookies for Import-Export.
 * GODT-357 Use go-message to make a better message parser.
 * GODT-720 Time measurement of progress for Import-Export.
+* GODT-693 Launcher.
 
 ### Changed
 * GODT-511 User agent format changed.

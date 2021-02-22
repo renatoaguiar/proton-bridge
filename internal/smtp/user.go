@@ -20,9 +20,11 @@
 package smtp
 
 import (
+	"bytes"
 	"encoding/base64"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"mime"
 	"net/mail"
 	"strings"
@@ -31,7 +33,7 @@ import (
 	"github.com/ProtonMail/gopenpgp/v2/crypto"
 	"github.com/ProtonMail/proton-bridge/internal/events"
 	"github.com/ProtonMail/proton-bridge/pkg/listener"
-	pkgMessage "github.com/ProtonMail/proton-bridge/pkg/message"
+	pkgMsg "github.com/ProtonMail/proton-bridge/pkg/message"
 	"github.com/ProtonMail/proton-bridge/pkg/message/parser"
 	"github.com/ProtonMail/proton-bridge/pkg/pmapi"
 	goSMTPBackend "github.com/emersion/go-smtp"
@@ -229,7 +231,7 @@ func (su *smtpUser) Send(returnPath string, to []string, messageReader io.Reader
 		err = errors.Wrap(err, "failed to create new parser")
 		return
 	}
-	message, plainBody, attReaders, err := pkgMessage.ParserWithParser(parser)
+	message, plainBody, attReaders, err := pkgMsg.ParserWithParser(parser)
 	if err != nil {
 		log.WithError(err).Error("Failed to parse message")
 		return
@@ -275,10 +277,10 @@ func (su *smtpUser) Send(returnPath string, to []string, messageReader io.Reader
 	}
 
 	if attachedPublicKey != "" {
-		pkgMessage.AttachPublicKey(parser, attachedPublicKey, attachedPublicKeyName)
+		pkgMsg.AttachPublicKey(parser, attachedPublicKey, attachedPublicKeyName)
 	}
 
-	mimeBody, err := pkgMessage.BuildMIMEBody(parser)
+	mimeBody, err := pkgMsg.BuildMIMEBody(parser)
 	if err != nil {
 		log.WithError(err).Error("Failed to build message")
 		return
@@ -317,6 +319,12 @@ func (su *smtpUser) Send(returnPath string, to []string, messageReader io.Reader
 	if wasSent {
 		log.Debug("Message was already sent")
 		return nil
+	}
+
+	if ok, err := su.isTotalSizeOkay(message, attReaders); err != nil {
+		return err
+	} else if !ok {
+		return errors.New("message is too large")
 	}
 
 	su.backend.sendRecorder.addMessage(sendRecorderMessageHash)
@@ -526,4 +534,25 @@ func (su *smtpUser) continueSendingUnencryptedMail(subject string) bool {
 func (su *smtpUser) Logout() error {
 	log.Debug("SMTP client logged out user ", su.addressID)
 	return nil
+}
+
+func (su *smtpUser) isTotalSizeOkay(message *pmapi.Message, attReaders []io.Reader) (bool, error) {
+	maxUpload, err := su.storeUser.GetMaxUpload()
+	if err != nil {
+		return false, err
+	}
+
+	var attSize int64
+
+	for i := range attReaders {
+		b, err := ioutil.ReadAll(attReaders[i])
+		if err != nil {
+			return false, err
+		}
+
+		attSize += int64(len(b))
+		attReaders[i] = bytes.NewBuffer(b)
+	}
+
+	return message.Size+attSize <= maxUpload, nil
 }

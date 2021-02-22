@@ -17,22 +17,35 @@
 
 package bridge
 
-import "github.com/ProtonMail/proton-bridge/internal/users"
+import (
+	"github.com/Masterminds/semver/v3"
 
-type Configer interface {
-	users.Configer
-	StoreFactoryConfiger
+	"github.com/ProtonMail/proton-bridge/internal/updater"
+)
+
+type Locator interface {
+	Clear() error
+	ClearUpdates() error
 }
 
-type StoreFactoryConfiger interface {
-	GetDBDir() string
+type Cacher interface {
 	GetIMAPCachePath() string
+	GetDBDir() string
 }
 
-type PreferenceProvider interface {
+type SettingsProvider interface {
 	Get(key string) string
+	Set(key string, value string)
 	GetBool(key string) bool
 	SetBool(key string, val bool)
-	GetInt(key string) int
-	Set(key string, value string)
+}
+
+type Updater interface {
+	Check() (updater.VersionInfo, error)
+	IsDowngrade(updater.VersionInfo) bool
+	InstallUpdate(updater.VersionInfo) error
+}
+
+type Versioner interface {
+	RemoveOtherVersions(*semver.Version) error
 }

@@ -216,24 +216,73 @@ func (api *FakePMAPI) generateMessageFromImportRequest(msgReq *pmapi.ImportMsgRe
 		return nil, err
 	}
 
-	messageID := api.controller.messageIDGenerator.next("")
+	existingMsg := api.findMessage(m)
+	if existingMsg != nil {
+		for _, newLabelID := range api.generateLabelIDsFromImportRequest(msgReq) {
+			if !existingMsg.HasLabelID(newLabelID) {
+				existingMsg.LabelIDs = append(existingMsg.LabelIDs, newLabelID)
+			}
+		}
+		return existingMsg, nil
+	}
 
+	messageID := api.controller.messageIDGenerator.next("")
 	return &pmapi.Message{
-		ID:        messageID,
-		AddressID: msgReq.AddressID,
-		Sender:    m.Sender,
-		ToList:    m.ToList,
-		Subject:   m.Subject,
-		Unread:    msgReq.Unread,
-		LabelIDs:  append(msgReq.LabelIDs, pmapi.AllMailLabel),
-		Body:      m.Body,
-		Header:    m.Header,
-		Flags:     msgReq.Flags,
-		Time:      msgReq.Time,
+		ID:         messageID,
+		ExternalID: m.ExternalID,
+		AddressID:  msgReq.AddressID,
+		Sender:     m.Sender,
+		ToList:     m.ToList,
+		Subject:    m.Subject,
+		Unread:     msgReq.Unread,
+		LabelIDs:   api.generateLabelIDsFromImportRequest(msgReq),
+		Body:       m.Body,
+		Header:     m.Header,
+		Flags:      msgReq.Flags,
+		Time:       msgReq.Time,
 	}, nil
 }
 
+// generateLabelIDsFromImportRequest simulates API where Sent and INBOX is the same
+// mailbox but the message is shown in one or other based on the flags instead.
+func (api *FakePMAPI) generateLabelIDsFromImportRequest(msgReq *pmapi.ImportMsgReq) []string {
+	isInSentOrInbox := false
+	labelIDs := []string{pmapi.AllMailLabel}
+	for _, labelID := range msgReq.LabelIDs {
+		if labelID == pmapi.InboxLabel || labelID == pmapi.SentLabel {
+			isInSentOrInbox = true
+		} else {
+			labelIDs = append(labelIDs, labelID)
+		}
+	}
+	if isInSentOrInbox && (msgReq.Flags&pmapi.FlagSent) != 0 {
+		labelIDs = append(labelIDs, pmapi.SentLabel)
+	}
+	if isInSentOrInbox && (msgReq.Flags&pmapi.FlagReceived) != 0 {
+		labelIDs = append(labelIDs, pmapi.InboxLabel)
+	}
+	return labelIDs
+}
+
+func (api *FakePMAPI) findMessage(newMsg *pmapi.Message) *pmapi.Message {
+	if newMsg.ExternalID == "" {
+		return nil
+	}
+	for _, msg := range api.messages {
+		// API surely has better algorithm, but this one is enough for us for now.
+		if !msg.IsDraft() &&
+			msg.Subject == newMsg.Subject &&
+			msg.ExternalID == newMsg.ExternalID {
+			return msg
+		}
+	}
+	return nil
+}
+
 func (api *FakePMAPI) addMessage(message *pmapi.Message) {
+	if api.findMessage(message) != nil {
+		return
+	}
 	api.messages = append(api.messages, message)
 	api.addEventMessage(pmapi.EventCreate, message)
 }

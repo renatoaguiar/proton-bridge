@@ -27,6 +27,7 @@ import (
 // Constants of events used by the event listener in bridge.
 const (
 	ErrorEvent                   = "error"
+	CredentialsErrorEvent        = "credentialsError"
 	CloseConnectionEvent         = "closeConnection"
 	LogoutEvent                  = "logout"
 	AddressChangedEvent          = "addressChanged"
@@ -48,6 +49,9 @@ const (
 // SetupEvents specific to event type and data.
 func SetupEvents(listener listener.Listener) {
 	listener.SetLimit(LogoutEvent, LogoutEventTimeout)
-	listener.SetBuffer(TLSCertIssue)
 	listener.SetBuffer(ErrorEvent)
+	listener.SetBuffer(CredentialsErrorEvent)
+	listener.SetBuffer(InternetOffEvent)
+	listener.SetBuffer(UpgradeApplicationEvent)
+	listener.SetBuffer(TLSCertIssue)
 }

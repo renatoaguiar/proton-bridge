@@ -20,28 +20,64 @@ package tests
 import (
 	"fmt"
 	"regexp"
+	"runtime"
 	"strings"
+	"time"
 
+	"github.com/ProtonMail/proton-bridge/pkg/pmapi"
+	"github.com/ProtonMail/proton-bridge/test/accounts"
 	"github.com/cucumber/godog"
 	"github.com/cucumber/godog/gherkin"
+	"github.com/stretchr/testify/assert"
 )
 
 func APIChecksFeatureContext(s *godog.Suite) {
-	s.Step(`^API endpoint "([^"]*)" is called with:$`, apiIsCalledWith)
+	s.Step(`^API endpoint "([^"]*)" is called$`, apiIsCalled)
+	s.Step(`^API endpoint "([^"]*)" is called with$`, apiIsCalledWith)
+	s.Step(`^API endpoint "([^"]*)" is not called$`, apiIsNotCalled)
+	s.Step(`^API endpoint "([^"]*)" is not called with$`, apiIsNotCalledWith)
 	s.Step(`^message is sent with API call$`, messageIsSentWithAPICall)
+	s.Step(`^API mailbox "([^"]*)" for "([^"]*)" has (\d+) message(?:s)?$`, apiMailboxForUserHasNumberOfMessages)
+	s.Step(`^API mailbox "([^"]*)" for address "([^"]*)" of "([^"]*)" has (\d+) message(?:s)?$`, apiMailboxForAddressOfUserHasNumberOfMessages)
 	s.Step(`^API mailbox "([^"]*)" for "([^"]*)" has messages$`, apiMailboxForUserHasMessages)
 	s.Step(`^API mailbox "([^"]*)" for address "([^"]*)" of "([^"]*)" has messages$`, apiMailboxForAddressOfUserHasMessages)
+	s.Step(`^API client manager user-agent is "([^"]*)"$`, clientManagerUserAgent)
+}
+
+func apiIsCalled(endpoint string) error {
+	if !apiIsCalledWithHelper(endpoint, "") {
+		return fmt.Errorf("%s was not called", endpoint)
+	}
+	return nil
 }
 
 func apiIsCalledWith(endpoint string, data *gherkin.DocString) error {
+	if !apiIsCalledWithHelper(endpoint, data.Content) {
+		return fmt.Errorf("%s was not called with %s", endpoint, data.Content)
+	}
+	return nil
+}
+
+func apiIsNotCalled(endpoint string) error {
+	if apiIsCalledWithHelper(endpoint, "") {
+		return fmt.Errorf("%s was called", endpoint)
+	}
+	return nil
+}
+
+func apiIsNotCalledWith(endpoint string, data *gherkin.DocString) error {
+	if apiIsCalledWithHelper(endpoint, data.Content) {
+		return fmt.Errorf("%s was called with %s", endpoint, data.Content)
+	}
+	return nil
+}
+
+func apiIsCalledWithHelper(endpoint string, content string) bool {
 	split := strings.Split(endpoint, " ")
 	method := split[0]
 	path := split[1]
-	request := []byte(data.Content)
-	if !ctx.GetPMAPIController().WasCalled(method, path, request) {
-		return fmt.Errorf("%s was not called with %s", endpoint, request)
-	}
-	return nil
+	request := []byte(content)
+	return ctx.GetPMAPIController().WasCalled(method, path, request)
 }
 
 func messageIsSentWithAPICall(data *gherkin.DocString) error {
@@ -80,6 +116,35 @@ func checkAllRequiredFieldsForSendingMessage(request []byte) bool {
 	return true
 }
 
+func apiMailboxForUserHasNumberOfMessages(mailboxName, bddUserID string, countOfMessages int) error {
+	return apiMailboxForAddressOfUserHasNumberOfMessages(mailboxName, "", bddUserID, countOfMessages)
+}
+
+func apiMailboxForAddressOfUserHasNumberOfMessages(mailboxName, bddAddressID, bddUserID string, countOfMessages int) error {
+	account := ctx.GetTestAccountWithAddress(bddUserID, bddAddressID)
+	if account == nil {
+		return godog.ErrPending
+	}
+
+	start := time.Now()
+	for {
+		afterLimit := time.Since(start) > ctx.EventLoopTimeout()
+		pmapiMessages, err := getPMAPIMessages(account, mailboxName)
+		if err != nil {
+			return err
+		}
+		total := len(pmapiMessages)
+		if total == countOfMessages {
+			break
+		}
+		if afterLimit {
+			return fmt.Errorf("expected %v messages, but got %v", countOfMessages, total)
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	return nil
+}
+
 func apiMailboxForUserHasMessages(mailboxName, bddUserID string, messages *gherkin.DataTable) error {
 	return apiMailboxForAddressOfUserHasMessages(mailboxName, "", bddUserID, messages)
 }
@@ -90,13 +155,7 @@ func apiMailboxForAddressOfUserHasMessages(mailboxName, bddAddressID, bddUserID 
 		return godog.ErrPending
 	}
 
-	labelIDs, err := ctx.GetPMAPIController().GetLabelIDs(account.Username(), []string{mailboxName})
-	if err != nil {
-		return internalError(err, "getting label %s for %s", mailboxName, account.Username())
-	}
-	labelID := labelIDs[0]
-
-	pmapiMessages, err := ctx.GetPMAPIController().GetMessages(account.Username(), labelID)
+	pmapiMessages, err := getPMAPIMessages(account, mailboxName)
 	if err != nil {
 		return err
 	}
@@ -115,5 +174,26 @@ func apiMailboxForAddressOfUserHasMessages(mailboxName, bddAddressID, bddUserID 
 			return fmt.Errorf("message %v not found", rowMap)
 		}
 	}
+	return nil
+}
+
+func getPMAPIMessages(account *accounts.TestAccount, mailboxName string) ([]*pmapi.Message, error) {
+	labelIDs, err := ctx.GetPMAPIController().GetLabelIDs(account.Username(), []string{mailboxName})
+	if err != nil {
+		return nil, internalError(err, "getting label %s for %s", mailboxName, account.Username())
+	}
+	labelID := labelIDs[0]
+
+	return ctx.GetPMAPIController().GetMessages(account.Username(), labelID)
+}
+
+func clientManagerUserAgent(expectedUserAgent string) error {
+	expectedUserAgent = strings.ReplaceAll(expectedUserAgent, "[GOOS]", runtime.GOOS)
+
+	assert.Eventually(ctx.GetTestingT(), func() bool {
+		userAgent := ctx.GetClientManager().GetUserAgent()
+		return userAgent == expectedUserAgent
+	}, 5*time.Second, time.Second)
+
 	return nil
 }
