@@ -75,13 +75,13 @@ type User interface {
 type Bridger interface {
 	UserManager
 
-	GetCurrentClient() string
-	SetCurrentOS(os string)
 	ReportBug(osType, osVersion, description, accountName, address, emailClient string) error
 	AllowProxy()
 	DisallowProxy()
 	GetUpdateChannel() updater.UpdateChannel
 	SetUpdateChannel(updater.UpdateChannel) error
+	GetKeychainApp() string
+	SetKeychainApp(keychain string)
 }
 
 type bridgeWrap struct {

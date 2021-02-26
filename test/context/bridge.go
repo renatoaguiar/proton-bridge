@@ -21,6 +21,9 @@ import (
 	"time"
 
 	"github.com/ProtonMail/proton-bridge/internal/bridge"
+	"github.com/ProtonMail/proton-bridge/internal/config/useragent"
+	"github.com/ProtonMail/proton-bridge/internal/constants"
+	"github.com/ProtonMail/proton-bridge/internal/sentry"
 	"github.com/ProtonMail/proton-bridge/internal/users"
 	"github.com/ProtonMail/proton-bridge/pkg/listener"
 )
@@ -67,8 +70,9 @@ func newBridgeInstance(
 	eventListener listener.Listener,
 	clientManager users.ClientManager,
 ) *bridge.Bridge {
+	sentryReporter := sentry.NewReporter("bridge", constants.Version, useragent.New())
 	panicHandler := &panicHandler{t: t}
 	updater := newFakeUpdater()
 	versioner := newFakeVersioner()
-	return bridge.New(locations, cache, settings, panicHandler, eventListener, clientManager, credStore, updater, versioner)
+	return bridge.New(locations, cache, settings, sentryReporter, panicHandler, eventListener, clientManager, credStore, updater, versioner)
 }

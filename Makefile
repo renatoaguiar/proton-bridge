@@ -10,7 +10,7 @@ TARGET_OS?=${GOOS}
 .PHONY: build build-ie build-nogui build-ie-nogui build-launcher build-launcher-ie  versioner hasher
 
 # Keep version hardcoded so app build works also without Git repository.
-BRIDGE_APP_VERSION?=1.6.3+git
+BRIDGE_APP_VERSION?=1.6.5+git
 IE_APP_VERSION?=1.3.0+git
 APP_VERSION:=${BRIDGE_APP_VERSION}
 SRC_ICO:=logo.ico
@@ -83,7 +83,7 @@ build: ${TGZ_TARGET}
 build-ie:
 	TARGET_CMD=Import-Export $(MAKE) build
 
-build-nogui:
+build-nogui: gofiles
 	go build ${BUILD_FLAGS_NOGUI} -o ${EXE_NAME} cmd/${TARGET_CMD}/main.go
 
 build-ie-nogui:
@@ -180,7 +180,7 @@ update-qt-docs:
 	go get github.com/therecipe/qt/internal/binding/files/docs/$(QT_API)
 
 ## Dev dependencies
-.PHONY: install-devel-tools install-linter install-go-mod-outdated
+.PHONY: install-devel-tools install-linter install-go-mod-outdated install-git-hooks
 LINTVER:="v1.29.0"
 LINTSRC:="https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh"
 
@@ -197,6 +197,9 @@ install-linter: check-has-go
 install-go-mod-outdated:
 	which go-mod-outdated || go get -u github.com/psampaz/go-mod-outdated
 
+install-git-hooks:
+	cp utils/githooks/* .git/hooks/
+	chmod +x .git/hooks/*
 
 ## Checks, mocks and docs
 .PHONY: check-has-go add-license change-copyright-year test bench coverage mocks lint-license lint-golang lint updates doc release-notes
@@ -249,7 +252,7 @@ mocks:
 	mockgen --package mocks github.com/ProtonMail/proton-bridge/pkg/listener Listener > internal/store/mocks/utils_mocks.go
 	mockgen --package mocks github.com/ProtonMail/proton-bridge/pkg/pmapi Client > pkg/pmapi/mocks/mocks.go
 
-lint: lint-golang lint-license lint-changelog
+lint: gofiles lint-golang lint-license lint-changelog
 
 lint-license:
 	./utils/missing_license.sh check

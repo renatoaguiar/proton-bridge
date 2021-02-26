@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/ProtonMail/proton-bridge/internal/events"
+	"github.com/ProtonMail/proton-bridge/internal/sentry"
 	"github.com/ProtonMail/proton-bridge/internal/store"
 	"github.com/ProtonMail/proton-bridge/internal/users/credentials"
 	usersmocks "github.com/ProtonMail/proton-bridge/internal/users/mocks"
@@ -185,9 +186,10 @@ func initMocks(t *testing.T) mocks {
 
 	// Set up store factory.
 	m.storeMaker.EXPECT().New(gomock.Any()).DoAndReturn(func(user store.BridgeUser) (*store.Store, error) {
+		var sentryReporter *sentry.Reporter // Sentry reporter is not used under unit tests.
 		dbFile, err := ioutil.TempFile("", "bridge-store-db-*.db")
 		require.NoError(t, err, "could not get temporary file for store db")
-		return store.New(m.PanicHandler, user, m.clientManager, m.eventListener, dbFile.Name(), m.storeCache)
+		return store.New(sentryReporter, m.PanicHandler, user, m.clientManager, m.eventListener, dbFile.Name(), m.storeCache)
 	}).AnyTimes()
 	m.storeMaker.EXPECT().Remove(gomock.Any()).AnyTimes()
 

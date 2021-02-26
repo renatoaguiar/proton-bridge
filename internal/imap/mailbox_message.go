@@ -66,12 +66,15 @@ func (dnc *doNotCacheError) errorOrNil() error {
 //
 // If the Backend implements Updater, it must notify the client immediately
 // via a mailbox update.
-func (im *imapMailbox) CreateMessage(flags []string, date time.Time, body imap.Literal) error { // nolint[funlen]
+func (im *imapMailbox) CreateMessage(flags []string, date time.Time, body imap.Literal) error {
+	return im.logCommand(func() error {
+		return im.createMessage(flags, date, body)
+	}, "APPEND", flags, date)
+}
+
+func (im *imapMailbox) createMessage(flags []string, date time.Time, body imap.Literal) error { // nolint[funlen]
 	// Called from go-imap in goroutines - we need to handle panics for each function.
 	defer im.panicHandler.HandlePanic()
-
-	im.user.appendStarted()
-	defer im.user.appendFinished()
 
 	m, _, _, readers, err := message.Parse(body)
 	if err != nil {
@@ -153,6 +156,9 @@ func (im *imapMailbox) CreateMessage(flags []string, date time.Time, body imap.L
 			internalID = match[1]
 		}
 	}
+
+	im.user.appendExpungeLock.Lock()
+	defer im.user.appendExpungeLock.Unlock()
 
 	// Avoid appending a message which is already on the server. Apply the
 	// new label instead. This always happens with Outlook (it uses APPEND

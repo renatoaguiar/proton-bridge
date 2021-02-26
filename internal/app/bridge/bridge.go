@@ -37,21 +37,28 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
+const (
+	flagLogIMAP        = "log-imap"
+	flagLogSMTP        = "log-smtp"
+	flagNoWindow       = "no-window"
+	flagNonInteractive = "noninteractive"
+)
+
 func New(base *base.Base) *cli.App {
 	app := base.NewApp(run)
 
 	app.Flags = append(app.Flags, []cli.Flag{
 		&cli.StringFlag{
-			Name:  "log-imap",
+			Name:  flagLogIMAP,
 			Usage: "Enable logging of IMAP communications (all|client|server) (may contain decrypted data!)"},
 		&cli.BoolFlag{
-			Name:  "log-smtp",
+			Name:  flagLogSMTP,
 			Usage: "Enable logging of SMTP communications (may contain decrypted data!)"},
 		&cli.BoolFlag{
-			Name:  "no-window",
+			Name:  flagNoWindow,
 			Usage: "Don't show window after start"},
 		&cli.BoolFlag{
-			Name:  "noninteractive",
+			Name:  flagNonInteractive,
 			Usage: "Start Bridge entirely noninteractively"},
 	}...)
 
@@ -63,8 +70,7 @@ func run(b *base.Base, c *cli.Context) error { // nolint[funlen]
 	if err != nil {
 		logrus.WithError(err).Fatal("Failed to load TLS config")
 	}
-
-	bridge := bridge.New(b.Locations, b.Cache, b.Settings, b.CrashHandler, b.Listener, b.CM, b.Creds, b.Updater, b.Versioner)
+	bridge := bridge.New(b.Locations, b.Cache, b.Settings, b.SentryReporter, b.CrashHandler, b.Listener, b.CM, b.Creds, b.Updater, b.Versioner)
 	imapBackend := imap.NewIMAPBackend(b.CrashHandler, b.Listener, b.Cache, bridge)
 	smtpBackend := smtp.NewSMTPBackend(b.CrashHandler, b.Listener, b.Settings, bridge)
 
@@ -78,9 +84,9 @@ func run(b *base.Base, c *cli.Context) error { // nolint[funlen]
 		imapPort := b.Settings.GetInt(settings.IMAPPortKey)
 		imap.NewIMAPServer(
 			b.CrashHandler,
-			c.String("log-imap") == "client" || c.String("log-imap") == "all",
-			c.String("log-imap") == "server" || c.String("log-imap") == "all",
-			imapPort, tlsConfig, imapBackend, b.Listener).ListenAndServe()
+			c.String(flagLogIMAP) == "client" || c.String(flagLogIMAP) == "all",
+			c.String(flagLogIMAP) == "server" || c.String(flagLogIMAP) == "all",
+			imapPort, tlsConfig, imapBackend, b.UserAgent, b.Listener).ListenAndServe()
 	}()
 
 	go func() {
@@ -88,12 +94,12 @@ func run(b *base.Base, c *cli.Context) error { // nolint[funlen]
 		smtpPort := b.Settings.GetInt(settings.SMTPPortKey)
 		useSSL := b.Settings.GetBool(settings.SMTPSSLKey)
 		smtp.NewSMTPServer(
-			c.Bool("log-smtp"),
+			c.Bool(flagLogSMTP),
 			smtpPort, useSSL, tlsConfig, smtpBackend, b.Listener).ListenAndServe()
 	}()
 
 	// Bridge supports no-window option which we should use for autostart.
-	b.Autostart.Exec = append(b.Autostart.Exec, "--no-window")
+	b.Autostart.Exec = append(b.Autostart.Exec, "--"+flagNoWindow)
 
 	// We want to remove old versions if the app exits successfully.
 	b.AddTeardownAction(b.Versioner.RemoveOldVersions)
@@ -104,9 +110,9 @@ func run(b *base.Base, c *cli.Context) error { // nolint[funlen]
 	var frontendMode string
 
 	switch {
-	case c.Bool("cli"):
+	case c.Bool(base.FlagCLI):
 		frontendMode = "cli"
-	case c.Bool("noninteractive"):
+	case c.Bool(flagNonInteractive):
 		return <-(make(chan error)) // Block forever.
 	default:
 		frontendMode = "qt"
@@ -117,12 +123,13 @@ func run(b *base.Base, c *cli.Context) error { // nolint[funlen]
 		constants.BuildVersion,
 		b.Name,
 		frontendMode,
-		!c.Bool("no-window"),
+		!c.Bool(flagNoWindow),
 		b.CrashHandler,
 		b.Locations,
 		b.Settings,
 		b.Listener,
 		b.Updater,
+		b.UserAgent,
 		bridge,
 		smtpBackend,
 		b.Autostart,

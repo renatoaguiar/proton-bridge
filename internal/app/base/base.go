@@ -43,38 +43,55 @@ import (
 	"github.com/ProtonMail/proton-bridge/internal/config/cache"
 	"github.com/ProtonMail/proton-bridge/internal/config/settings"
 	"github.com/ProtonMail/proton-bridge/internal/config/tls"
+	"github.com/ProtonMail/proton-bridge/internal/config/useragent"
 	"github.com/ProtonMail/proton-bridge/internal/constants"
 	"github.com/ProtonMail/proton-bridge/internal/cookies"
 	"github.com/ProtonMail/proton-bridge/internal/crash"
 	"github.com/ProtonMail/proton-bridge/internal/events"
 	"github.com/ProtonMail/proton-bridge/internal/locations"
 	"github.com/ProtonMail/proton-bridge/internal/logging"
+	"github.com/ProtonMail/proton-bridge/internal/sentry"
 	"github.com/ProtonMail/proton-bridge/internal/updater"
 	"github.com/ProtonMail/proton-bridge/internal/users/credentials"
 	"github.com/ProtonMail/proton-bridge/internal/versioner"
 	"github.com/ProtonMail/proton-bridge/pkg/keychain"
 	"github.com/ProtonMail/proton-bridge/pkg/listener"
 	"github.com/ProtonMail/proton-bridge/pkg/pmapi"
-	"github.com/ProtonMail/proton-bridge/pkg/sentry"
 	"github.com/allan-simon/go-singleinstance"
 	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli/v2"
 )
 
+const (
+	flagCPUProfile      = "cpu-prof"
+	flagCPUProfileShort = "p"
+	flagMemProfile      = "mem-prof"
+	flagMemProfileShort = "m"
+	flagLogLevel        = "log-level"
+	flagLogLevelShort   = "l"
+	// FlagCLI indicate to start with command line interface
+	FlagCLI      = "cli"
+	flagCLIShort = "c"
+	flagRestart  = "restart"
+	flagLauncher = "launcher"
+)
+
 type Base struct {
-	CrashHandler *crash.Handler
-	Locations    *locations.Locations
-	Settings     *settings.Settings
-	Lock         *os.File
-	Cache        *cache.Cache
-	Listener     listener.Listener
-	Creds        *credentials.Store
-	CM           *pmapi.ClientManager
-	CookieJar    *cookies.Jar
-	Updater      *updater.Updater
-	Versioner    *versioner.Versioner
-	TLS          *tls.TLS
-	Autostart    *autostart.App
+	SentryReporter *sentry.Reporter
+	CrashHandler   *crash.Handler
+	Locations      *locations.Locations
+	Settings       *settings.Settings
+	Lock           *os.File
+	Cache          *cache.Cache
+	Listener       listener.Listener
+	Creds          *credentials.Store
+	CM             *pmapi.ClientManager
+	CookieJar      *cookies.Jar
+	UserAgent      *useragent.UserAgent
+	Updater        *updater.Updater
+	Versioner      *versioner.Versioner
+	TLS            *tls.TLS
+	Autostart      *autostart.App
 
 	Name    string // the app's name
 	usage   string // the app's usage description
@@ -92,7 +109,10 @@ func New( // nolint[funlen]
 	keychainName,
 	cacheVersion string,
 ) (*Base, error) {
-	sentryReporter := sentry.NewReporter(appName, constants.Version)
+	userAgent := useragent.New()
+
+	sentryReporter := sentry.NewReporter(appName, constants.Version, userAgent)
+
 	crashHandler := crash.NewHandler(
 		sentryReporter.ReportException,
 		crash.ShowErrorNotification(appName),
@@ -166,20 +186,9 @@ func New( // nolint[funlen]
 		return nil, err
 	}
 
-	apiConfig := pmapi.GetAPIConfig(configName, constants.Version)
-	apiConfig.ConnectionOffHandler = func() {
-		listener.Emit(events.InternetOffEvent, "")
-	}
-	apiConfig.ConnectionOnHandler = func() {
-		listener.Emit(events.InternetOnEvent, "")
-	}
-	apiConfig.UpgradeApplicationHandler = func() {
-		listener.Emit(events.UpgradeApplicationEvent, "")
-	}
-	cm := pmapi.NewClientManager(apiConfig)
+	cm := pmapi.NewClientManager(getAPIConfig(configName, listener), userAgent)
 	cm.SetRoundTripper(pmapi.GetRoundTripper(cm, listener))
 	cm.SetCookieJar(jar)
-	sentryReporter.SetUserAgentProvider(cm)
 
 	key, err := crypto.NewKeyFromArmored(updater.DefaultPublicKey)
 	if err != nil {
@@ -220,19 +229,21 @@ func New( // nolint[funlen]
 	}
 
 	return &Base{
-		CrashHandler: crashHandler,
-		Locations:    locations,
-		Settings:     settingsObj,
-		Lock:         lock,
-		Cache:        cache,
-		Listener:     listener,
-		Creds:        credentials.NewStore(kc),
-		CM:           cm,
-		CookieJar:    jar,
-		Updater:      updater,
-		Versioner:    versioner,
-		TLS:          tls.New(settingsPath),
-		Autostart:    autostart,
+		SentryReporter: sentryReporter,
+		CrashHandler:   crashHandler,
+		Locations:      locations,
+		Settings:       settingsObj,
+		Lock:           lock,
+		Cache:          cache,
+		Listener:       listener,
+		Creds:          credentials.NewStore(kc),
+		CM:             cm,
+		CookieJar:      jar,
+		UserAgent:      userAgent,
+		Updater:        updater,
+		Versioner:      versioner,
+		TLS:            tls.New(settingsPath),
+		Autostart:      autostart,
 
 		Name:  appName,
 		usage: appUsage,
@@ -252,32 +263,32 @@ func (b *Base) NewApp(action func(*Base, *cli.Context) error) *cli.App {
 	app.Action = b.run(action)
 	app.Flags = []cli.Flag{
 		&cli.BoolFlag{
-			Name:    "cpu-prof",
-			Aliases: []string{"p"},
+			Name:    flagCPUProfile,
+			Aliases: []string{flagCPUProfileShort},
 			Usage:   "Generate CPU profile",
 		},
 		&cli.BoolFlag{
-			Name:    "mem-prof",
-			Aliases: []string{"m"},
+			Name:    flagMemProfile,
+			Aliases: []string{flagMemProfileShort},
 			Usage:   "Generate memory profile",
 		},
 		&cli.StringFlag{
-			Name:    "log-level",
-			Aliases: []string{"l"},
+			Name:    flagLogLevel,
+			Aliases: []string{flagLogLevelShort},
 			Usage:   "Set the log level (one of panic, fatal, error, warn, info, debug)",
 		},
 		&cli.BoolFlag{
-			Name:    "cli",
-			Aliases: []string{"c"},
+			Name:    FlagCLI,
+			Aliases: []string{flagCLIShort},
 			Usage:   "Use command line interface",
 		},
 		&cli.StringFlag{
-			Name:   "restart",
+			Name:   flagRestart,
 			Usage:  "The number of times the application has already restarted",
 			Hidden: true,
 		},
 		&cli.StringFlag{
-			Name:   "launcher",
+			Name:   flagLauncher,
 			Usage:  "The launcher to use to restart the application",
 			Hidden: true,
 		},
@@ -302,21 +313,21 @@ func (b *Base) run(appMainLoop func(*Base, *cli.Context) error) cli.ActionFunc {
 		defer func() { _ = b.Lock.Close() }()
 
 		// If launcher was used to start the app, use that for restart/autostart.
-		if launcher := c.String("launcher"); launcher != "" {
+		if launcher := c.String(flagLauncher); launcher != "" {
 			b.Autostart.Exec = []string{launcher}
 			b.command = launcher
 		}
 
-		if doCPUProfile := c.Bool("cpu-prof"); doCPUProfile {
+		if c.Bool(flagCPUProfile) {
 			startCPUProfile()
 			defer pprof.StopCPUProfile()
 		}
 
-		if doMemoryProfile := c.Bool("mem-prof"); doMemoryProfile {
+		if c.Bool(flagMemProfile) {
 			defer makeMemoryProfile()
 		}
 
-		logging.SetLevel(c.String("log-level"))
+		logging.SetLevel(c.String(flagLogLevel))
 
 		logrus.
 			WithField("appName", b.Name).
@@ -328,7 +339,7 @@ func (b *Base) run(appMainLoop func(*Base, *cli.Context) error) cli.ActionFunc {
 			Info("Run app")
 
 		b.CrashHandler.AddRecoveryAction(func(interface{}) error {
-			if c.Int("restart") > maxAllowedRestarts {
+			if c.Int(flagRestart) > maxAllowedRestarts {
 				logrus.
 					WithField("restart", c.Int("restart")).
 					Warn("Not restarting, already restarted too many times")
@@ -363,4 +374,14 @@ func (b *Base) doTeardown() error {
 	}
 
 	return nil
+}
+
+func getAPIConfig(configName string, listener listener.Listener) *pmapi.ClientConfig {
+	apiConfig := pmapi.GetAPIConfig(configName, constants.Version)
+
+	apiConfig.ConnectionOffHandler = func() { listener.Emit(events.InternetOffEvent, "") }
+	apiConfig.ConnectionOnHandler = func() { listener.Emit(events.InternetOnEvent, "") }
+	apiConfig.UpgradeApplicationHandler = func() { listener.Emit(events.UpgradeApplicationEvent, "") }
+
+	return apiConfig
 }
