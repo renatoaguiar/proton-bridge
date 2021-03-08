@@ -19,11 +19,8 @@
 package ie
 
 import (
-	"time"
-
 	"github.com/ProtonMail/proton-bridge/internal/api"
 	"github.com/ProtonMail/proton-bridge/internal/app/base"
-	"github.com/ProtonMail/proton-bridge/internal/config/settings"
 	"github.com/ProtonMail/proton-bridge/internal/constants"
 	"github.com/ProtonMail/proton-bridge/internal/frontend"
 	"github.com/ProtonMail/proton-bridge/internal/frontend/types"
@@ -74,16 +71,6 @@ func run(b *base.Base, c *cli.Context) error {
 		ie,
 		b,
 	)
-
-	// Watch for updates routine
-	go func() {
-		ticker := time.NewTicker(time.Hour)
-
-		for {
-			checkAndHandleUpdate(b.Updater, f, b.Settings.GetBool(settings.AutoUpdateKey))
-			<-ticker.C
-		}
-	}()
 
 	return f.Loop()
 }
