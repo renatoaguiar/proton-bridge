@@ -107,17 +107,53 @@ Item {
             gui.openMainWindow(false)
             if (go.isConnectionOK) {
                 if( winMain.updateState=="noInternet") {
-                    go.setUpdateState("upToDate")
+                    go.updateState = "upToDate"
                 }
             } else {
-                go.setUpdateState("noInternet")
+                go.updateState = "noInternet"
             }
         }
 
-        onSetUpdateState : {
+        onUpdateStateChanged : {
+            // Update tray icon if needed
+            switch (go.updateState) {
+                case "internetCheck":
+                    break;
+                case "noInternet" :
+                    gui.warningFlags |= Style.warnInfoBar
+                    break;
+                case "oldVersion":
+                    gui.warningFlags |= Style.warnInfoBar
+                    break;
+                case "forceUpdate":
+                    // Force update should presist once it happened and never be overwritten.
+                    // That means that tray icon should allways remain in error state.
+                    // But since we have only two sources of error icon in tray (force update 
+                    // + installation fail) and both are unrecoverable and we do not ever remove
+                    // error flag from gui.warningFlags - it is ok to rely on gui.warningFlags and
+                    // not on winMain.updateState (which presist forceUpdate)
+                    gui.warningFlags |= Style.errorInfoBar
+                    break;
+                case "upToDate":
+                    gui.warningFlags &= ~Style.warnInfoBar
+                    break;
+                case "updateRestart":
+                    gui.warningFlags |= Style.warnInfoBar
+                    break;
+                case "updateError":
+                    gui.warningFlags |= Style.errorInfoBar
+                    break;
+                default :
+                    break;
+            }
+
+            // if main window is closed - most probably it is destroyed (see closeMainWindow())
+            if (winMain == null) {
+                return
+            }
             // once app is outdated prevent from state change
             if (winMain.updateState != "forceUpdate") {
-                winMain.updateState = updateState
+                winMain.updateState = go.updateState
             }
         }
 
@@ -129,15 +165,14 @@ Item {
         }
 
         onNotifyManualUpdate: {
-            go.setUpdateState("oldVersion")
+            go.updateState = "oldVersion"
         }
 
         onNotifyManualUpdateRestartNeeded: {
             if (!winMain.dialogUpdate.visible) {
-                gui.openMainWindow(true)
                 winMain.dialogUpdate.show()
             }
-            go.setUpdateState("updateRestart")
+            go.updateState = "updateRestart"
             winMain.dialogUpdate.finished(false)
 
             // after manual update - just retart immidiatly
@@ -147,28 +182,25 @@ Item {
 
         onNotifyManualUpdateError: {
             if (!winMain.dialogUpdate.visible) {
-                gui.openMainWindow(true)
                 winMain.dialogUpdate.show()
             }
-            go.setUpdateState("updateError")
+            go.updateState = "updateError"
             winMain.dialogUpdate.finished(true)
         }
 
         onNotifyForceUpdate : {
-            go.setUpdateState("forceUpdate")
+            go.updateState = "forceUpdate"
             if (!winMain.dialogUpdate.visible) {
-                gui.openMainWindow(true)
                 winMain.dialogUpdate.show()
             }
         }
 
         onNotifySilentUpdateRestartNeeded: {
-            go.setUpdateState("updateRestart")
+            go.updateState = "updateRestart"
         }
 
         onNotifySilentUpdateError: {
-            go.setUpdateState("updateError")
-            gui.openMainWindow(true)
+            go.updateState = "updateError"
         }
 
         onNotifyLogout : {
@@ -287,9 +319,17 @@ Item {
         if (showAndRise) {
             gui.winMain.showAndRise()
         }
+
+        // restore update notification bar: trigger updateStateChanged
+        var tmp = go.updateState
+        go.updateState = ""
+        go.updateState = tmp
     }
 
     function closeMainWindow () {
+        // Historical reasons: once upon a time there was a report about high GPU
+        // usage on MacOS while bridge is closed. Legends say that destroying 
+        // MainWindow solved this.
         gui.winMain.hide()
         gui.winMain.destroy(5000)
         gui.winMain = null

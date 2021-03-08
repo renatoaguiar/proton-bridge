@@ -24,7 +24,7 @@ import QtQuick.Window 2.2
 
 Window {
     id: testroot
-    width   : 150
+    width   : 250
     height  : 600
     flags   : Qt.Window | Qt.Dialog | Qt.FramelessWindowHint
     visible : true
@@ -60,7 +60,7 @@ Window {
         Text {
             id: systrText
             anchors {
-                right : test_systray.right
+                horizontalCenter: parent.horizontalCenter
                 verticalCenter: test_systray.verticalCenter
             }
             text: "unset"
@@ -299,6 +299,7 @@ Window {
         property string fullversion : "QA.1.0 (d9f8sdf9) 2020-02-19T10:57:23+01:00"
         property string downloadLink: "https://protonmail.com/download/beta/protonmail-bridge-1.1.5-1.x86_64.rpm;https://www.protonmail.com/downloads/beta/Desktop-Bridge-link1.exe;https://www.protonmail.com/downloads/beta/Desktop-Bridge-link1.exe;https://www.protonmail.com/downloads/beta/Desktop-Bridge-link1.exe;"
 
+        property string updateState
         property string updateVersion : "QA.1.0"
         property bool updateCanInstall: true
         property string updateLandingPage : "https://protonmail.com/bridge/download/"
@@ -340,7 +341,6 @@ Window {
 
         signal notifyPortIssue(bool busyPortIMAP, bool busyPortSMTP)
         signal notifyVersionIsTheLatest()
-        signal setUpdateState(string updateState)
         signal notifyKeychainRebuild()
         signal notifyHasNoKeychain()
 

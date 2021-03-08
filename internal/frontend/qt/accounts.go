@@ -15,7 +15,7 @@
 // You should have received a copy of the GNU General Public License
 // along with ProtonMail Bridge.  If not, see <https://www.gnu.org/licenses/>.
 
-// +build !nogui
+// +build build_qt
 
 package qt
 
@@ -84,7 +84,7 @@ func (s *FrontendQt) clearCache() {
 
 	channel := s.bridge.GetUpdateChannel()
 	if channel == updater.EarlyChannel {
-		if err := s.bridge.SetUpdateChannel(updater.StableChannel); err != nil {
+		if _, err := s.bridge.SetUpdateChannel(updater.StableChannel); err != nil {
 			s.Qml.NotifyManualUpdateError()
 			return
 		}

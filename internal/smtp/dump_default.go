@@ -15,18 +15,8 @@
 // You should have received a copy of the GNU General Public License
 // along with ProtonMail Bridge.  If not, see <https://www.gnu.org/licenses/>.
 
-// +build build_qt
+// +build !build_qa
 
-package qtie
+package smtp
 
-const (
-	TabGlobal     = 0
-	TabSettings   = 1
-	TabHelp       = 2
-	TabQuit       = 4
-	TabAddAccount = -1
-)
-
-func (s *FrontendQt) SendNotification(tabIndex int, msg string) {
-	s.Qml.NotifyBubble(tabIndex, msg)
-}
+func dumpMessageData([]byte, string) {}

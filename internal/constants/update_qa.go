@@ -15,18 +15,14 @@
 // You should have received a copy of the GNU General Public License
 // along with ProtonMail Bridge.  If not, see <https://www.gnu.org/licenses/>.
 
-// +build build_qt
+// +build build_qa
 
-package qtie
+package constants
 
-const (
-	TabGlobal     = 0
-	TabSettings   = 1
-	TabHelp       = 2
-	TabQuit       = 4
-	TabAddAccount = -1
+import "time"
+
+// nolint[gochecknoglobals]
+var (
+	// UpdateCheckInterval defines how often we check for new version
+	UpdateCheckInterval = time.Duration(5 * time.Minute)
 )
-
-func (s *FrontendQt) SendNotification(tabIndex int, msg string) {
-	s.Qml.NotifyBubble(tabIndex, msg)
-}
