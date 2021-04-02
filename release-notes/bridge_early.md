@@ -1,3 +1,29 @@
+## v1.6.9
+- 2021-03-30
+
+### New
+
+- Log improvements for easier debugging (sync issues)
+- Added relevant metadata to Windows builds
+
+### Fixed
+
+- Fixed the way Bridge interacts with Windows Firewall and Defender
+- Fixed potential security vulnerability related to rpath
+- Improved parsing of embedded messages
+- GUI bug fixes
+
+
+## v1.6.6
+- 2021-02-26
+
+### Fixed
+
+- Fixed update notifications
+- Fixed GUI freeze while switching to early update channel
+- Fixed Bridge autostart
+- Improved signing of update packages
+
 ## v1.6.5
 - 2021-02-22
 

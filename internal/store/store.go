@@ -54,6 +54,8 @@ var (
 	//   * {messageID} -> message data (subject, from, to, time, headers, body size, ...)
 	// * bodystructure
 	//   * {messageID} -> message body structure
+	// * msgbuildcount
+	//   * {messageID} -> uint32 number of message builds to track re-sync issues
 	// * counts
 	//   * {mailboxID} -> mailboxCounts: totalOnAPI, unreadOnAPI, labelName, labelColor, labelIsExclusive
 	// * address_info
@@ -76,6 +78,7 @@ var (
 	//       * {messageID} -> true
 	metadataBucket      = []byte("metadata")          //nolint[gochecknoglobals]
 	bodystructureBucket = []byte("bodystructure")     //nolint[gochecknoglobals]
+	msgBuildCountBucket = []byte("msgbuildcount")     //nolint[gochecknoglobals]
 	countsBucket        = []byte("counts")            //nolint[gochecknoglobals]
 	addressInfoBucket   = []byte("address_info")      //nolint[gochecknoglobals]
 	addressModeBucket   = []byte("address_mode")      //nolint[gochecknoglobals]
@@ -204,6 +207,10 @@ func openBoltDatabase(filePath string) (db *bolt.DB, err error) {
 			return
 		}
 
+		if _, err = tx.CreateBucketIfNotExists(msgBuildCountBucket); err != nil {
+			return
+		}
+
 		if _, err = tx.CreateBucketIfNotExists(countsBucket); err != nil {
 			return
 		}
@@ -263,7 +270,7 @@ func (store *Store) init(firstInit bool) (err error) {
 		}
 	}
 
-	store.log.WithField("mode", store.addressMode).Debug("Initialising store")
+	store.log.WithField("mode", store.addressMode).Info("Initialising store")
 
 	labels, err := store.initCounts()
 	if err != nil {

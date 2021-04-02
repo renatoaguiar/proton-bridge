@@ -25,8 +25,6 @@ import (
 	"github.com/ProtonMail/proton-bridge/internal/frontend"
 	"github.com/ProtonMail/proton-bridge/internal/frontend/types"
 	"github.com/ProtonMail/proton-bridge/internal/importexport"
-	"github.com/ProtonMail/proton-bridge/internal/updater"
-	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli/v2"
 )
@@ -75,10 +73,11 @@ func run(b *base.Base, c *cli.Context) error {
 	return f.Loop()
 }
 
-func checkAndHandleUpdate(u types.Updater, f frontend.Frontend, autoUpdate bool) {
+func checkAndHandleUpdate(u types.Updater, f frontend.Frontend, autoUpdate bool) { //nolint[unparam]
+	log := logrus.WithField("pkg", "app/ie")
 	version, err := u.Check()
 	if err != nil {
-		logrus.WithError(err).Error("An error occurred while checking for updates")
+		log.WithError(err).Error("An error occurred while checking for updates")
 		return
 	}
 
@@ -88,33 +87,11 @@ func checkAndHandleUpdate(u types.Updater, f frontend.Frontend, autoUpdate bool)
 	f.SetVersion(version)
 
 	if !u.IsUpdateApplicable(version) {
-		logrus.Debug("No need to update")
+		log.Info("No need to update")
 		return
 	}
 
-	logrus.WithField("version", version.Version).Info("An update is available")
+	log.WithField("version", version.Version).Info("An update is available")
 
-	if !autoUpdate {
-		f.NotifyManualUpdate(version, u.CanInstall(version))
-		return
-	}
-
-	if !u.CanInstall(version) {
-		logrus.Info("A manual update is required")
-		f.NotifySilentUpdateError(updater.ErrManualUpdateRequired)
-		return
-	}
-
-	if err := u.InstallUpdate(version); err != nil {
-		if errors.Cause(err) == updater.ErrDownloadVerify {
-			logrus.WithError(err).Warning("Skipping update installation due to temporary error")
-		} else {
-			logrus.WithError(err).Error("The update couldn't be installed")
-			f.NotifySilentUpdateError(err)
-		}
-
-		return
-	}
-
-	f.NotifySilentUpdateInstalled()
+	f.NotifyManualUpdate(version, u.CanInstall(version))
 }

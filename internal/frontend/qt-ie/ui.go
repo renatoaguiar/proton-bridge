@@ -33,7 +33,7 @@ type GoQMLInterface struct {
 
 	_ func() `constructor:"init"`
 
-	_ bool   `property:"isAutoUpdate"`
+	//_ bool   `property:"isAutoUpdate"`
 	_ string `property:"currentAddress"`
 	_ string `property:"goos"`
 	_ string `property:"credits"`
@@ -62,8 +62,8 @@ type GoQMLInterface struct {
 	_ func() `signal:"notifyManualUpdateRestartNeeded"`
 	_ func() `signal:"notifyManualUpdateError"`
 	_ func() `signal:"notifyForceUpdate"`
-	_ func() `signal:"notifySilentUpdateRestartNeeded"`
-	_ func() `signal:"notifySilentUpdateError"`
+	//_ func() `signal:"notifySilentUpdateRestartNeeded"`
+	//_ func() `signal:"notifySilentUpdateError"`
 	_ func() `slot:"checkForUpdates"`
 	_ func() `slot:"checkAndOpenReleaseNotes"`
 	_ func() `signal:"openReleaseNotesExternally"`
@@ -77,8 +77,8 @@ type GoQMLInterface struct {
 	_ string `property:"credentialsNotRemoved"`
 	_ string `property:"versionCheckFailed"`
 	//
-	_ func(isAvailable bool)   `signal:"setConnectionStatus"`
-	_ func()                   `slot:"checkInternet"`
+	_ func(isAvailable bool) `signal:"setConnectionStatus"`
+	_ func()                 `slot:"checkInternet"`
 
 	_ func() `slot:"setToRestart"`
 
@@ -93,7 +93,7 @@ type GoQMLInterface struct {
 
 	_ func() `signal:"showWindow"`
 
-	_ func() `slot:"toggleAutoUpdate"`
+	//_ func() `slot:"toggleAutoUpdate"`
 	_ func() `slot:"quit"`
 	_ func() `slot:"loadAccounts"`
 	_ func() `slot:"openLogs"`
@@ -108,14 +108,14 @@ type GoQMLInterface struct {
 
 	_ func(description, client, address string) bool                                       `slot:"sendBug"`
 	_ func(address string) bool                                                            `slot:"sendImportReport"`
-	_ func(address string)                                                                 `slot:"loadStructureForExport"`
+	_ func(username, address string)                                                       `slot:"loadStructureForExport"`
 	_ func() string                                                                        `slot:"leastUsedColor"`
 	_ func(username string, name string, color string, isLabel bool, sourceID string) bool `slot:"createLabelOrFolder"`
 	_ func(fpath, address, fileType string, attachEncryptedBody bool)                      `slot:"startExport"`
 	_ func(email string, importEncrypted bool)                                             `slot:"startImport"`
 	_ func()                                                                               `slot:"resetSource"`
 
-	_ func(isFromIMAP bool, sourcePath, sourceEmail, sourcePassword, sourceServe, sourcePort, targetAddress string) `slot:"setupAndLoadForImport"`
+	_ func(isFromIMAP bool, sourcePath, sourceEmail, sourcePassword, sourceServe, sourcePort, targetUsername, targetAddress string) `slot:"setupAndLoadForImport"`
 
 	_ string `property:"progressInit"`
 
@@ -162,7 +162,7 @@ func (s *GoQMLInterface) init() {}
 func (s *GoQMLInterface) SetFrontend(f *FrontendQt) {
 	s.ConnectQuit(f.App.Quit)
 
-	s.ConnectToggleAutoUpdate(f.toggleAutoUpdate)
+	//s.ConnectToggleAutoUpdate(f.toggleAutoUpdate)
 	s.ConnectLoadAccounts(f.Accounts.LoadAccounts)
 	s.ConnectOpenLogs(f.openLogs)
 	s.ConnectOpenDownloadLink(f.openDownloadLink)
@@ -207,4 +207,6 @@ func (s *GoQMLInterface) SetFrontend(f *FrontendQt) {
 	s.ConnectCheckPathStatus(CheckPathStatus)
 
 	s.ConnectEmitEvent(f.emitEvent)
+
+	s.ConnectStartManualUpdate(f.startManualUpdate)
 }

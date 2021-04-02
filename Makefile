@@ -10,8 +10,8 @@ TARGET_OS?=${GOOS}
 .PHONY: build build-ie build-nogui build-ie-nogui build-launcher build-launcher-ie  versioner hasher
 
 # Keep version hardcoded so app build works also without Git repository.
-BRIDGE_APP_VERSION?=1.6.6+git
-IE_APP_VERSION?=1.3.0+git
+BRIDGE_APP_VERSION?=1.6.9+git
+IE_APP_VERSION?=1.3.3+git
 APP_VERSION:=${BRIDGE_APP_VERSION}
 SRC_ICO:=logo.ico
 SRC_ICNS:=Bridge.icns
@@ -19,6 +19,7 @@ SRC_SVG:=logo.svg
 TGT_ICNS:=Bridge.icns
 EXE_NAME:=proton-bridge
 CONFIGNAME:=bridge
+WINDRES_DEFINE:=BUILD_BRIDGE
 ifeq "${TARGET_CMD}" "Import-Export"
     APP_VERSION:=${IE_APP_VERSION}
     SRC_ICO:=ie.ico
@@ -27,6 +28,7 @@ ifeq "${TARGET_CMD}" "Import-Export"
     TGT_ICNS:=ImportExport.icns
     EXE_NAME:=proton-ie
     CONFIGNAME:=importExport
+	WINDRES_DEFINE:=BUILD_IE
 endif
 REVISION:=$(shell git rev-parse --short=10 HEAD)
 BUILD_TIME:=$(shell date +%FT%T%z)
@@ -56,7 +58,7 @@ EXE_QT:=${DIRNAME}
 ifeq "${TARGET_OS}" "windows"
     EXE:=${EXE}.exe
     EXE_QT:=${EXE_QT}.exe
-    ICO_FILES:=${SRC_ICO} icon.rc icon_windows.syso
+    RESOURCE_FILE:=resource.syso
 endif
 ifeq "${TARGET_OS}" "darwin"
     DARWINAPP_CONTENTS:=${DEPLOY_DIR}/darwin/${EXE}.app/Contents
@@ -89,8 +91,14 @@ build-nogui: gofiles
 build-ie-nogui:
 	TARGET_CMD=Import-Export $(MAKE) build-nogui
 
-build-launcher:
-	go build ${BUILD_FLAGS_LAUNCHER} -o launcher-${APP} cmd/launcher/main.go
+ifeq "${GOOS}" "windows"
+  	PRERESOURCECMD:=cp ./resource.syso ./cmd/launcher/resource.syso
+	POSTRESOURCECMD:=rm -f ./cmd/launcher/resource.syso
+endif
+build-launcher: ${RESOURCE_FILE}
+	${PRERESOURCECMD}
+	go build ${BUILD_FLAGS_LAUNCHER} -o launcher-${EXE} ./cmd/launcher/
+	${POSTRESOURCECMD}
 
 build-launcher-ie:
 	TARGET_CMD=Import-Export $(MAKE) build-launcher
@@ -134,7 +142,7 @@ ifneq "${GOOS}" "${TARGET_OS}"
   endif
 endif
 
-${EXE_TARGET}: check-has-go gofiles ${ICO_FILES} ${VENDOR_TARGET}
+${EXE_TARGET}: check-has-go gofiles ${RESOURCE_FILE} ${VENDOR_TARGET}
 	rm -rf deploy ${TARGET_OS} ${DEPLOY_DIR}
 	cp cmd/${TARGET_CMD}/main.go .
 	qtdeploy ${BUILD_FLAGS_GUI} ${QT_BUILD_TARGET}
@@ -142,13 +150,12 @@ ${EXE_TARGET}: check-has-go gofiles ${ICO_FILES} ${VENDOR_TARGET}
 	if [ "${EXE_QT_TARGET}" != "${EXE_TARGET}" ]; then mv ${EXE_QT_TARGET} ${EXE_TARGET}; fi
 	rm -rf ${TARGET_OS} main.go
 
-logo.ico ie.ico: ./internal/frontend/share/icons/${SRC_ICO}
-	cp $^ $@
-icon.rc: ./internal/frontend/share/icon.rc
-	cp $^ .
-icon_windows.syso: icon.rc logo.ico
-	windres --target=pe-x86-64 -o $@ $<
 
+WINDRES_YEAR:=$(shell date +%Y)
+APP_VERSION_COMMA:=$(shell echo "${APP_VERSION}" | sed -e 's/[^0-9,.]*//g' -e 's/\./,/g')
+resource.syso: ./internal/frontend/share/info.rc ./internal/frontend/share/icons/${SRC_ICO} .FORCE
+	rm -f ./*.syso
+	windres --target=pe-x86-64 -I ./internal/frontend/share/icons/ -D ${WINDRES_DEFINE} -D ICO_FILE=${SRC_ICO} -D EXE_NAME="${EXE_NAME}" -D FILE_VERSION="${APP_VERSION}" -D ORIGINAL_FILE_NAME="${EXE}" -D PRODUCT_VERSION="${APP_VERSION}" -D FILE_VERSION_COMMA=${APP_VERSION_COMMA} -D YEAR=${WINDRES_YEAR} -o $@ $<
 
 ## Rules for therecipe/qt
 .PHONY: prepare-vendor update-vendor update-qt-docs
@@ -294,6 +301,7 @@ LOG?=debug
 LOG_IMAP?=client # client/server/all, or empty to turn it off
 LOG_SMTP?=--log-smtp # empty to turn it off
 RUN_FLAGS?=-m -l=${LOG} --log-imap=${LOG_IMAP} ${LOG_SMTP}
+RUN_FLAGS_IE?=-m -l=${LOG}
 
 run: run-nogui-cli
 
@@ -316,11 +324,11 @@ run-ie-qml-preview:
 	$(MAKE) -C internal/frontend/qt-ie -f Makefile.local qmlpreview
 
 run-ie:
-	TARGET_CMD=Import-Export $(MAKE) run
+	TARGET_CMD=Import-Export RUN_FLAGS="${RUN_FLAGS_IE}" $(MAKE) run
 run-ie-qt:
-	TARGET_CMD=Import-Export $(MAKE) run-qt
+	TARGET_CMD=Import-Export RUN_FLAGS="${RUN_FLAGS_IE}" $(MAKE) run-qt
 run-ie-nogui:
-	TARGET_CMD=Import-Export $(MAKE) run-nogui
+	TARGET_CMD=Import-Export RUN_FLAGS="${RUN_FLAGS_IE}" $(MAKE) run-nogui
 
 clean-frontend-qt:
 	$(MAKE) -C internal/frontend/qt -f Makefile.local clean
@@ -337,7 +345,7 @@ clean: clean-vendor
 	rm -rf cmd/Desktop-Bridge/deploy
 	rm -rf cmd/Import-Export/deploy
 	rm -f build last.log mem.pprof main.go
-	rm -rf logo.ico icon.rc icon_windows.syso internal/frontend/qt/icon_windows.syso
+	rm -f resource.syso
 	rm -f release-notes/bridge.html
 	rm -f release-notes/import-export.html
 
@@ -345,3 +353,5 @@ clean: clean-vendor
 generate:
 	go generate ./...
 	$(MAKE) add-license
+
+.FORCE:
