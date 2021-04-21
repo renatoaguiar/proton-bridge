@@ -60,7 +60,7 @@ type ContactEmail struct {
 
 var errVerificationFailed = errors.New("signature verification failed")
 
-//================= Public utility functions ======================
+// ================= Public utility functions ======================
 
 func (c *client) EncryptAndSignCards(cards []Card) ([]Card, error) {
 	var err error
@@ -93,7 +93,7 @@ func (c *client) DecryptAndVerifyCards(cards []Card) ([]Card, error) {
 			if err != nil {
 				return nil, err
 			}
-			card.Data = signedCard
+			card.Data = string(signedCard)
 		}
 		if isSignedCardType(card.Type) {
 			err := c.verify(card.Data, card.Signature)
@@ -105,7 +105,7 @@ func (c *client) DecryptAndVerifyCards(cards []Card) ([]Card, error) {
 	return cards, nil
 }
 
-//====================== READ ===========================
+// ====================== READ ===========================
 
 type ContactsListRes struct {
 	Res
@@ -235,7 +235,7 @@ func (c *client) GetContactEmailByEmail(email string, page int, pageSize int) (c
 	return
 }
 
-//============================ CREATE ====================================
+// ============================ CREATE ====================================
 
 type CardsList struct {
 	Cards []Card
@@ -419,7 +419,7 @@ func (c *client) DeleteAllContacts() (err error) {
 	return
 }
 
-//===================== Private utility methods =======================
+// ===================== Private utility methods =======================
 
 func isSignedCardType(cardType int) bool {
 	return (cardType & CardSigned) == CardSigned

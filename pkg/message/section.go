@@ -38,7 +38,7 @@ type SectionInfo struct {
 	reader                    io.Reader
 }
 
-// Read and count
+// Read and count.
 func (si *SectionInfo) Read(p []byte) (n int, err error) {
 	n, err = si.reader.Read(p)
 	si.Size += n
@@ -201,7 +201,7 @@ func (bs *BodyStructure) parseAllChildSections(r io.Reader, currentPath []int, s
 	mediaType, params, _ := pmmime.ParseMediaType(info.Header.Get("Content-Type"))
 
 	// If multipart, call getAllParts, else read to count lines.
-	if (strings.HasPrefix(mediaType, "multipart/") || mediaType == rfc822Message) && params["boundary"] != "" {
+	if (strings.HasPrefix(mediaType, "multipart/") || mediaType == "message/rfc822") && params["boundary"] != "" {
 		newPath := append(currentPath, 1)
 
 		var br *boundaryReader
@@ -237,11 +237,11 @@ func (bs *BodyStructure) parseAllChildSections(r io.Reader, currentPath []int, s
 	}
 
 	// Clear all buffers.
-	bodyReader = nil
+	bodyReader = nil //nolint[wastedassign] just to be sure we clear garbage collector
 	bodyInfo.reader = nil
 	tp.R = nil
-	tp = nil
-	bufInfo = nil // nolint
+	tp = nil      //nolint[wastedassign] just to be sure we clear garbage collector
+	bufInfo = nil //nolint[ineffassign] just to be sure we clear garbage collector
 	info.reader = nil
 
 	// Store boundaries.
@@ -305,6 +305,11 @@ func stringPathFromInts(ints []int) (ret string) {
 	return
 }
 
+func (bs *BodyStructure) hasInfo(sectionPath []int) bool {
+	_, err := bs.getInfo(sectionPath)
+	return err == nil
+}
+
 func (bs *BodyStructure) getInfo(sectionPath []int) (sectionInfo *SectionInfo, err error) {
 	path := stringPathFromInts(sectionPath)
 	sectionInfo, ok := (*bs)[path]
@@ -332,30 +337,40 @@ func (bs *BodyStructure) GetSectionContent(wholeMail io.ReadSeeker, sectionPath 
 	if err != nil {
 		return
 	}
-	if _, err = wholeMail.Seek(int64(info.Start+info.Size-info.BSize), io.SeekStart); err != nil {
-		return
-	}
-	section = make([]byte, info.BSize)
-	_, err = wholeMail.Read(section)
-	return
+	return goToOffsetAndReadNBytes(wholeMail, info.Start+info.Size-info.BSize, info.BSize)
+}
 
-	/* This is slow:
-	sectionBuf, err := bs.GetSection(wholeMail, sectionPath)
+// GetMailHeader returns the main header of mail.
+func (bs *BodyStructure) GetMailHeader() (header textproto.MIMEHeader, err error) {
+	return bs.GetSectionHeader([]int{})
+}
+
+// GetMailHeaderBytes returns the bytes with main mail header.
+// Warning: It can contain extra lines or multipart comment.
+func (bs *BodyStructure) GetMailHeaderBytes(wholeMail io.ReadSeeker) (header []byte, err error) {
+	info, err := bs.getInfo([]int{})
 	if err != nil {
 		return
 	}
-
-	tp := textproto.NewReader(bufio.NewReader(buf))
-	if _, err = tp.ReadMIMEHeader(); err != nil {
-		return err
-	}
-
-	sectionBuf = &bytes.Buffer{}
-	_, err = io.Copy(sectionBuf, tp.R)
-	return
-	*/
+	headerLength := info.Size - info.BSize
+	return goToOffsetAndReadNBytes(wholeMail, 0, headerLength)
 }
 
+func goToOffsetAndReadNBytes(wholeMail io.ReadSeeker, offset, length int) ([]byte, error) {
+	if length < 1 {
+		return nil, errors.New("requested non positive length")
+	}
+	if offset > 0 {
+		if _, err := wholeMail.Seek(int64(offset), io.SeekStart); err != nil {
+			return nil, err
+		}
+	}
+	out := make([]byte, length)
+	_, err := wholeMail.Read(out)
+	return out, err
+}
+
+// GetSectionHeader returns the mime header of specified section.
 func (bs *BodyStructure) GetSectionHeader(sectionPath []int) (header textproto.MIMEHeader, err error) {
 	info, err := bs.getInfo(sectionPath)
 	if err != nil {
@@ -404,7 +419,7 @@ func (bs *BodyStructure) IMAPBodyStructure(currentPart []int) (imapBS *imap.Body
 
 	nextPart := append(currentPart, 1)
 	for {
-		if _, err := bs.getInfo(nextPart); err != nil {
+		if !bs.hasInfo(nextPart) {
 			break
 		}
 		var subStruct *imap.BodyStructure

@@ -19,11 +19,4 @@ package imap
 
 import "github.com/sirupsen/logrus"
 
-const (
-	fetchMessagesWorkers    = 5 // In how many workers to fetch message (group list on IMAP).
-	fetchAttachmentsWorkers = 5 // In how many workers to fetch attachments (for one message).
-)
-
-var (
-	log = logrus.WithField("pkg", "imap") //nolint[gochecknoglobals]
-)
+var log = logrus.WithField("pkg", "imap") //nolint[gochecknoglobals]

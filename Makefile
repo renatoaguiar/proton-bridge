@@ -10,7 +10,7 @@ TARGET_OS?=${GOOS}
 .PHONY: build build-ie build-nogui build-ie-nogui build-launcher build-launcher-ie  versioner hasher
 
 # Keep version hardcoded so app build works also without Git repository.
-BRIDGE_APP_VERSION?=1.6.9+git
+BRIDGE_APP_VERSION?=1.7.0+git
 IE_APP_VERSION?=1.3.3+git
 APP_VERSION:=${BRIDGE_APP_VERSION}
 SRC_ICO:=logo.ico
@@ -165,6 +165,7 @@ THERECIPE_ENV:=github.com/therecipe/env_${TARGET_OS}_amd64_513
 # therecipe/env in order to download it only once
 vendor-cache/${THERECIPE_ENV}:
 	git clone https://${THERECIPE_ENV}.git vendor-cache/${THERECIPE_ENV}
+	if [ "${TARGET_OS}" == "darwin" ]; then cp -f "./utils/QTBUG-88600/libqcocoa.dylib" "./vendor-cache/${THERECIPE_ENV}/5.13.0/clang_64/plugins/platforms/"; fi;
 
 # The command used to make symlinks is different on windows.
 # So if the GOOS is windows and we aren't crossbuilding (in which case the host os would still be *nix)
@@ -188,7 +189,7 @@ update-qt-docs:
 
 ## Dev dependencies
 .PHONY: install-devel-tools install-linter install-go-mod-outdated install-git-hooks
-LINTVER:="v1.29.0"
+LINTVER:="v1.39.0"
 LINTSRC:="https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh"
 
 install-dev-dependencies: install-devel-tools install-linter install-go-mod-outdated
@@ -257,6 +258,7 @@ mocks:
 	mockgen --package mocks github.com/ProtonMail/proton-bridge/internal/transfer PanicHandler,ClientManager,IMAPClientProvider > internal/transfer/mocks/mocks.go
 	mockgen --package mocks github.com/ProtonMail/proton-bridge/internal/store PanicHandler,ClientManager,BridgeUser,ChangeNotifier > internal/store/mocks/mocks.go
 	mockgen --package mocks github.com/ProtonMail/proton-bridge/pkg/listener Listener > internal/store/mocks/utils_mocks.go
+	mockgen --package mocks github.com/ProtonMail/proton-bridge/pkg/message Fetcher > pkg/message/mocks/mocks.go
 	mockgen --package mocks github.com/ProtonMail/proton-bridge/pkg/pmapi Client > pkg/pmapi/mocks/mocks.go
 
 lint: gofiles lint-golang lint-license lint-changelog

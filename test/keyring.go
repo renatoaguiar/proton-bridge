@@ -15,42 +15,21 @@
 // You should have received a copy of the GNU General Public License
 // along with ProtonMail Bridge.  If not, see <https://www.gnu.org/licenses/>.
 
-package message
+package tests
 
 import (
-	"net/mail"
-	"strings"
+	"testing"
 
-	"github.com/emersion/go-imap"
+	"github.com/ProtonMail/gopenpgp/v2/crypto"
+	"github.com/stretchr/testify/require"
 )
 
-func getAddresses(addrs []*mail.Address) (imapAddrs []*imap.Address) {
-	for _, a := range addrs {
-		if a == nil {
-			continue
-		}
+func MakeKeyRing(t *testing.T) *crypto.KeyRing {
+	key, err := crypto.GenerateKey("name", "email", "rsa", 2048)
+	require.NoError(t, err)
 
-		parts := strings.SplitN(a.Address, "@", 2)
-		if len(parts) != 2 {
-			continue
-		}
+	kr, err := crypto.NewKeyRing(key)
+	require.NoError(t, err)
 
-		imapAddrs = append(imapAddrs, &imap.Address{
-			PersonalName: a.Name,
-			MailboxName:  parts[0],
-			HostName:     parts[1],
-		})
-	}
-
-	return
-}
-
-func formatAddressList(addrs []*mail.Address) (s string) {
-	for i, addr := range addrs {
-		if i > 0 {
-			s += ", "
-		}
-		s += addr.String()
-	}
-	return
+	return kr
 }

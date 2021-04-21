@@ -1,8 +1,24 @@
+## v1.7.0
+- 2021-04-21
+
+### New
+
+- Refactor of message builder to achieve greater RFC compliance
+- Increased the number of message fetchers to allow more parallel requests - performance improvement
+- Log changes for easier debugging (update-related)
+
+### Fixed
+
+- Removed html-wrappig of non-decriptable messages - to facilitate decryption outside Bridge and/or allow to store such messages as they are
+- Tray icon issues with multiple displays on MacOS
+
+
 ## v1.6.9
 - 2021-03-30
 
 ### New
 
+- Revise storage locations for the config files, preferences and cache
 - Log improvements for easier debugging (sync issues)
 - Added relevant metadata to Windows builds
 

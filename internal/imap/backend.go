@@ -16,6 +16,19 @@
 // along with ProtonMail Bridge.  If not, see <https://www.gnu.org/licenses/>.
 
 // Package imap provides IMAP server of the Bridge.
+//
+// Methods are called by the go-imap library in parallel.
+// Additional parallelism is achieved while handling each IMAP request.
+//
+// For example, ListMessages internally uses `fetchWorkers` workers to resolve each requested item.
+// When IMAP clients request message literals (or parts thereof), we sometimes need to build RFC822 message literals.
+// To do this, we pass build jobs to the message builder, which internally manages its own parallelism.
+// Summary:
+//  - each IMAP fetch request is handled in parallel,
+//  - within each IMAP fetch request, individual items are handled by a pool of `fetchWorkers` workers,
+//  - within each worker, build jobs are posted to the message builder,
+//  - the message builder handles build jobs using its own, independent worker pool,
+// The builder will handle jobs in parallel up to its own internal limit. This prevents it from overwhelming API.
 package imap
 
 import (
@@ -26,8 +39,17 @@ import (
 	"github.com/ProtonMail/proton-bridge/internal/bridge"
 	"github.com/ProtonMail/proton-bridge/internal/events"
 	"github.com/ProtonMail/proton-bridge/pkg/listener"
+	"github.com/ProtonMail/proton-bridge/pkg/message"
 	"github.com/emersion/go-imap"
 	goIMAPBackend "github.com/emersion/go-imap/backend"
+)
+
+const (
+	// NOTE: Each fetch worker has its own set of attach workers so there can be up to 20*5=100 API requests at once.
+	// This is a reasonable limit to not overwhelm API while still maintaining as much parallelism as possible.
+	fetchWorkers  = 20 // In how many workers to fetch message (group list on IMAP).
+	attachWorkers = 5  // In how many workers to fetch attachments (for one message).
+	buildWorkers  = 20 // In how many workers to build messages.
 )
 
 type panicHandler interface {
@@ -42,6 +64,8 @@ type imapBackend struct {
 
 	users       map[string]*imapUser
 	usersLocker sync.Locker
+
+	builder *message.Builder
 
 	imapCache     map[string]map[string]string
 	imapCachePath string
@@ -77,6 +101,8 @@ func newIMAPBackend(
 
 		users:       map[string]*imapUser{},
 		usersLocker: &sync.Mutex{},
+
+		builder: message.NewBuilder(fetchWorkers, attachWorkers, buildWorkers),
 
 		imapCachePath: cache.GetIMAPCachePath(),
 		imapCacheLock: &sync.RWMutex{},

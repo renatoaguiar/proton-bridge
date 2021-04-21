@@ -122,11 +122,7 @@ func (t *TLS) GenerateCerts(template *x509.Certificate) error {
 	}
 	defer keyOut.Close() // nolint[errcheck]
 
-	if err := pem.Encode(keyOut, &pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(priv)}); err != nil {
-		return err
-	}
-
-	return nil
+	return pem.Encode(keyOut, &pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(priv)})
 }
 
 // GetConfig tries to load TLS config or generate new one which is then returned.
@@ -148,6 +144,7 @@ func (t *TLS) GetConfig() (*tls.Config, error) {
 	caCertPool := x509.NewCertPool()
 	caCertPool.AddCert(c.Leaf)
 
+	// nolint[gosec]: We need to support older TLS versions for AppleMail and Outlook.
 	return &tls.Config{
 		Certificates: []tls.Certificate{c},
 		ServerName:   "127.0.0.1",

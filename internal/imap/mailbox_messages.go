@@ -141,7 +141,7 @@ func (im *imapMailbox) addOrRemoveFlags(operation imap.FlagsOp, messageIDs, flag
 	for _, f := range flags {
 		switch f {
 		case imap.SeenFlag:
-			switch operation {
+			switch operation { //nolint[exhaustive] imap.SetFlags is processed by im.setFlags
 			case imap.AddFlags:
 				if err := im.storeMailbox.MarkMessagesRead(messageIDs); err != nil {
 					return err
@@ -152,7 +152,7 @@ func (im *imapMailbox) addOrRemoveFlags(operation imap.FlagsOp, messageIDs, flag
 				}
 			}
 		case imap.FlaggedFlag:
-			switch operation {
+			switch operation { //nolint[exhaustive] imap.SetFlag is processed by im.setFlags
 			case imap.AddFlags:
 				if err := im.storeMailbox.MarkMessagesStarred(messageIDs); err != nil {
 					return err
@@ -163,7 +163,7 @@ func (im *imapMailbox) addOrRemoveFlags(operation imap.FlagsOp, messageIDs, flag
 				}
 			}
 		case imap.DeletedFlag:
-			switch operation {
+			switch operation { //nolint[exhaustive] imap.SetFlag is processed by im.setFlags
 			case imap.AddFlags:
 				if err := im.storeMailbox.MarkMessagesDeleted(messageIDs); err != nil {
 					return err
@@ -182,7 +182,7 @@ func (im *imapMailbox) addOrRemoveFlags(operation imap.FlagsOp, messageIDs, flag
 			}
 
 			// Handle custom junk flags for Apple Mail and Thunderbird.
-			switch operation {
+			switch operation { //nolint[exhaustive] imap.SetFlag is processed by im.setFlags
 			// No label removal is necessary because Spam and Inbox are both exclusive labels so the backend
 			// will automatically take care of label removal.
 			case imap.AddFlags:
@@ -358,23 +358,29 @@ func (im *imapMailbox) SearchMessages(isUID bool, criteria *imap.SearchCriteria)
 				continue
 			}
 		}
+
+		// In order to speed up search it is not needed to check
+		// if IsFullHeaderCached.
+		header := storeMessage.GetHeader()
+
 		if !criteria.SentBefore.IsZero() || !criteria.SentSince.IsZero() {
-			if t, err := m.Header.Date(); err == nil && !t.IsZero() {
-				if !criteria.SentBefore.IsZero() {
-					if truncated := criteria.SentBefore.Truncate(24 * time.Hour); t.Unix() > truncated.Unix() {
-						continue
-					}
+			t, err := mail.Header(header).Date()
+			if err != nil || t.IsZero() {
+				t = time.Unix(m.Time, 0)
+			}
+			if !criteria.SentBefore.IsZero() {
+				if truncated := criteria.SentBefore.Truncate(24 * time.Hour); t.Unix() > truncated.Unix() {
+					continue
 				}
-				if !criteria.SentSince.IsZero() {
-					if truncated := criteria.SentSince.Truncate(24 * time.Hour); t.Unix() < truncated.Unix() {
-						continue
-					}
+			}
+			if !criteria.SentSince.IsZero() {
+				if truncated := criteria.SentSince.Truncate(24 * time.Hour); t.Unix() < truncated.Unix() {
+					continue
 				}
 			}
 		}
 
 		// Filter by headers.
-		header := message.GetHeader(m)
 		headerMatch := true
 		for criteriaKey, criteriaValues := range criteria.Header {
 			for _, criteriaValue := range criteriaValues {
@@ -382,6 +388,8 @@ func (im *imapMailbox) SearchMessages(isUID bool, criteria *imap.SearchCriteria)
 					continue
 				}
 				switch criteriaKey {
+				case "Subject":
+					headerMatch = strings.Contains(strings.ToLower(m.Subject), strings.ToLower(criteriaValue))
 				case "From":
 					headerMatch = addressMatch([]*mail.Address{m.Sender}, criteriaValue)
 				case "To":
@@ -536,7 +544,7 @@ func (im *imapMailbox) listMessages(isUID bool, seqSet *imap.SeqSet, items []ima
 	}
 
 	processCallback := func(value interface{}) (interface{}, error) {
-		apiID := value.(string)
+		apiID := value.(string) //nolint[forcetypeassert] we want to panic here
 
 		storeMessage, err := im.storeMailbox.GetMessage(apiID)
 		if err != nil {
@@ -570,12 +578,12 @@ func (im *imapMailbox) listMessages(isUID bool, seqSet *imap.SeqSet, items []ima
 	}
 
 	collectCallback := func(idx int, value interface{}) error {
-		msg := value.(*imap.Message)
+		msg := value.(*imap.Message) //nolint[forcetypeassert] we want to panic here
 		msgResponse <- msg
 		return nil
 	}
 
-	err = parallel.RunParallel(fetchMessagesWorkers, input, processCallback, collectCallback)
+	err = parallel.RunParallel(fetchWorkers, input, processCallback, collectCallback)
 	if err != nil {
 		return err
 	}
