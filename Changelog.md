@@ -2,6 +2,29 @@
 
 Changelog [format](http://keepachangelog.com/en/1.0.0/)
 
+## [Bridge 1.8.5] James
+
+### Fixed
+* GODT-1189: Draft created on Outlook is synced on web.
+* GODT-1190: Fix some random crashes of Bridge on Windows.
+* GODT-1191: Fix data loss of some drafts messages when restarting outlook on Windows.
+
+## [Bridge 1.8.4] James
+
+### Added
+* GODT-1155: Update gopenpgp v2.1.9 and use go-srp.
+* GODT-1044: Lite parser for appended messages.
+* GODT-1183: Add test for getting contact emails by email.
+* GODT-1184: Preserve signatures in externally signed messages.
+
+### Changed
+* GODT-949: Ignore some InvalidMediaParameter errors in lite parser.
+
+### Fixed
+* GODT-1161: Guarantee order of responses when creating new message.
+* GODT-1162: Fix wrong section 1 error when email has no MIME parts.
+
+
 ## [Bridge 1.8.3] James
 
 ### Fixed
@@ -26,11 +49,13 @@ Changelog [format](http://keepachangelog.com/en/1.0.0/)
 * GODT-1056 Check encrypted size of the message before upload.
 * GODT-1143 Turn off SMTP server while no connection.
 * GODT-1089 Explicitly open system preferences window on BigSur.
+* GODT-35: Connection manager with resty.
 
 ### Fixed
 * GODT-1159 SMTP server not restarting after restored internet.
 * GODT-1146 Refactor handling of fetching BODY[HEADER] (and similar) regarding trailing newline.
 * GODT-1152 Correctly resolve wildcard sequence/UID set.
+* GODT-876 Set default from if empty for importing draft.
 * Other: Avoid API jail.
 
 
