@@ -2,6 +2,27 @@
 
 Changelog [format](http://keepachangelog.com/en/1.0.0/)
 
+## [Bridge 1.8.7] James
+
+### Changed
+* GODT-1201: Update gopenpgp to 2.1.10.
+
+### Fixed
+* GODT-1193: Do not doubly encode parts.
+
+
+## [Bridge 1.8.6] James
+
+### Removed
+* GODT-1187: Remove IMAP/SMTP blocking when no internet.
+
+### Changed
+* GODT-1166: Reduce the number of auth for live test.
+
+### Fixed
+* GODT-1193: Do not use message.Read permit non-UTF-8 charsets.
+
+
 ## [Bridge 1.8.5] James
 
 ### Fixed

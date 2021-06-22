@@ -20,7 +20,6 @@ package message
 import (
 	"bytes"
 	"encoding/base64"
-	"io/ioutil"
 	"mime"
 	"net/mail"
 	"strings"
@@ -31,6 +30,7 @@ import (
 	"github.com/ProtonMail/gopenpgp/v2/crypto"
 	"github.com/ProtonMail/proton-bridge/pkg/pmapi"
 	"github.com/emersion/go-message"
+	"github.com/emersion/go-message/textproto"
 	"github.com/pkg/errors"
 )
 
@@ -280,36 +280,35 @@ func buildPGPMIMEFallbackRFC822(msg *pmapi.Message, opts JobOptions) ([]byte, er
 func writeMultipartSignedRFC822(header message.Header, body []byte, sig pmapi.Signature) ([]byte, error) { //nolint[funlen]
 	buf := new(bytes.Buffer)
 
+	boundary := newBoundary("").gen()
+
 	header.SetContentType("multipart/signed", map[string]string{
 		"micalg":   sig.Hash,
 		"protocol": "application/pgp-signature",
+		"boundary": boundary,
 	})
 
-	w, err := message.CreateWriter(buf, header)
+	if err := textproto.WriteHeader(buf, header.Header); err != nil {
+		return nil, err
+	}
+
+	mw := textproto.NewMultipartWriter(buf)
+
+	if err := mw.SetBoundary(boundary); err != nil {
+		return nil, err
+	}
+
+	bodyHeader, bodyData, err := readHeaderBody(body)
 	if err != nil {
 		return nil, err
 	}
 
-	ent, err := message.Read(bytes.NewReader(body))
-	if err != nil {
-		return nil, err
-	}
-
-	bodyPart, err := w.CreatePart(ent.Header)
-	if err != nil {
-		return nil, err
-	}
-
-	bodyData, err := ioutil.ReadAll(ent.Body)
+	bodyPart, err := mw.CreatePart(*bodyHeader)
 	if err != nil {
 		return nil, err
 	}
 
 	if _, err := bodyPart.Write(bodyData); err != nil {
-		return nil, err
-	}
-
-	if err := bodyPart.Close(); err != nil {
 		return nil, err
 	}
 
@@ -319,7 +318,7 @@ func writeMultipartSignedRFC822(header message.Header, body []byte, sig pmapi.Si
 	sigHeader.SetContentDisposition("attachment", map[string]string{"filename": "OpenPGP_signature"})
 	sigHeader.Set("Content-Description", "OpenPGP digital signature")
 
-	sigPart, err := w.CreatePart(sigHeader)
+	sigPart, err := mw.CreatePart(sigHeader.Header)
 	if err != nil {
 		return nil, err
 	}
@@ -333,11 +332,7 @@ func writeMultipartSignedRFC822(header message.Header, body []byte, sig pmapi.Si
 		return nil, err
 	}
 
-	if err := sigPart.Close(); err != nil {
-		return nil, err
-	}
-
-	if err := w.Close(); err != nil {
+	if err := mw.Close(); err != nil {
 		return nil, err
 	}
 
@@ -347,32 +342,22 @@ func writeMultipartSignedRFC822(header message.Header, body []byte, sig pmapi.Si
 func writeMultipartEncryptedRFC822(header message.Header, body []byte) ([]byte, error) {
 	buf := new(bytes.Buffer)
 
-	ent, err := message.Read(bytes.NewReader(body))
+	bodyHeader, bodyData, err := readHeaderBody(body)
 	if err != nil {
 		return nil, err
 	}
 
-	entFields := ent.Header.Fields()
+	entFields := bodyHeader.Fields()
 
 	for entFields.Next() {
 		header.Set(entFields.Key(), entFields.Value())
 	}
 
-	w, err := message.CreateWriter(buf, header)
-	if err != nil {
+	if err := textproto.WriteHeader(buf, header.Header); err != nil {
 		return nil, err
 	}
 
-	bodyData, err := ioutil.ReadAll(ent.Body)
-	if err != nil {
-		return nil, err
-	}
-
-	if _, err := w.Write(bodyData); err != nil {
-		return nil, err
-	}
-
-	if err := w.Close(); err != nil {
+	if _, err := buf.Write(bodyData); err != nil {
 		return nil, err
 	}
 

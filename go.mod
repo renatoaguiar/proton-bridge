@@ -19,7 +19,7 @@ require (
 	github.com/ProtonMail/go-rfc5322 v0.8.0
 	github.com/ProtonMail/go-srp v0.0.0-20210514134713-bd9454f3fa01
 	github.com/ProtonMail/go-vcard v0.0.0-20180326232728-33aaa0a0c8a5
-	github.com/ProtonMail/gopenpgp/v2 v2.1.9
+	github.com/ProtonMail/gopenpgp/v2 v2.1.10
 	github.com/PuerkitoBio/goquery v1.5.1
 	github.com/abiosoft/ishell v2.0.0+incompatible
 	github.com/abiosoft/readline v0.0.0-20180607040430-155bce2042db // indirect
@@ -73,5 +73,6 @@ require (
 replace (
 	github.com/docker/docker-credential-helpers => github.com/renatoaguiar/docker-credential-helpers v1.1.2
 	github.com/emersion/go-imap => github.com/ProtonMail/go-imap v0.0.0-20201228133358-4db68cea0cac
+	github.com/emersion/go-message => github.com/ProtonMail/go-message v0.0.0-20210611055058-fabeff2ec753
 	github.com/jameskeane/bcrypt => github.com/ProtonMail/bcrypt v0.0.0-20210511135022-227b4adcab57
 )
